@@ -39,8 +39,8 @@ class MADDPG:
         # self.critics = [Critic(n_agents, dim_obs, dim_act) for _ in range(n_agents)]
 
         # self.actors = [Stocha_actor(actor_dim, dim_act) for _ in range(n_agents)]  # use stochastic policy
-        # self.actors = [ActorNetwork_TwoPortion(actor_dim, dim_act) for _ in range(n_agents)]  # use deterministic policy
-        self.actors = [ActorNetwork_OnePortion(actor_dim, dim_act) for _ in range(n_agents)]  # use deterministic policy
+        self.actors = [ActorNetwork_TwoPortion(actor_dim, dim_act) for _ in range(n_agents)]  # use deterministic policy
+        # self.actors = [ActorNetwork_OnePortion(actor_dim, dim_act) for _ in range(n_agents)]  # use deterministic policy
         # self.actors = [GRUCELL_actor(actor_dim, dim_act, actor_hidden_state_size) for _ in range(n_agents)]  # use deterministic with GRU module policy
         # self.critics = [CriticNetwork_0724(critic_dim, n_agents, dim_act) for _ in range(n_agents)]
         # self.critics = [CriticNetwork(critic_dim, n_agents, dim_act) for _ in range(n_agents)]
@@ -208,7 +208,7 @@ class MADDPG:
 
         return c_loss, a_loss
 
-    def update_myown(self, i_episode, total_step_count, UPDATE_EVERY, single_eps_critic_cal_record, wandb=None, full_observable_critic_flag=False):
+    def update_myown(self, i_episode, total_step_count, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, wandb=None, full_observable_critic_flag=False):
 
         self.train_num = i_episode
 
@@ -342,10 +342,17 @@ class MADDPG:
                                                      ac[:, agent, :]).mean()
 
             # actor_loss = -self.critics[agent](stacked_elem_0[:,agent,:], ac[:, agent, :], agents_cur_hidden_state[:, agent, :])[0].mean()
-            self.actor_optimizer[agent].zero_grad()
-            actor_loss.backward()
-            # self.has_gradients(self.actors[agent], agent, wandb)  # Replace with your actor network variable
-            self.actor_optimizer[agent].step()
+            if transfer_learning:
+                if i_episode > 10000:
+                    self.actor_optimizer[agent].zero_grad()
+                    actor_loss.backward()
+                    # self.has_gradients(self.actors[agent], agent, wandb)  # Replace with your actor network variable
+                    self.actor_optimizer[agent].step()
+            else:
+                self.actor_optimizer[agent].zero_grad()
+                actor_loss.backward()
+                # self.has_gradients(self.actors[agent], agent, wandb)  # Replace with your actor network variable
+                self.actor_optimizer[agent].step()
 
             c_loss.append(loss_Q)
             a_loss.append(actor_loss)
@@ -360,7 +367,11 @@ class MADDPG:
             for i in range(self.n_agents):
                 # print("all agents NN update at episode {}".format(i_episode))
                 soft_update(self.critics_target[i], self.critics[i], self.tau)
-                soft_update(self.actors_target[i], self.actors[i], self.tau)
+                if transfer_learning:
+                    if i_episode >= 10000:
+                        soft_update(self.actors_target[i], self.actors[i], self.tau)
+                else:
+                    soft_update(self.actors_target[i], self.actors[i], self.tau)
 
         return c_loss, a_loss, single_eps_critic_cal_record
 
@@ -398,8 +409,8 @@ class MADDPG:
         # gru_history_input = torch.FloatTensor(gru_history_input).to(device)  # batch x seq_length x no_agent x feature_length
         gru_history_input = torch.FloatTensor(actor_hiddens).unsqueeze(0).to(device)  # batch x no_agent x feature_length
         for i in range(self.n_agents):
-            # self.var[i] = self.get_custom_linear_scaling_factor(cur_episode, total_training_steps, noise_start_level)  # self.var[i] will decrease as the episode increase
-            self.var[i] = self.exponential_decay_variance(cur_episode, mini_noise_eps, noise_start_level)  # self.var[i] will decrease as the episode increase
+            self.var[i] = self.get_custom_linear_scaling_factor(cur_episode, mini_noise_eps, noise_start_level)  # self.var[i] will decrease as the episode increase
+            # self.var[i] = self.exponential_decay_variance(cur_episode, mini_noise_eps, noise_start_level)  # self.var[i] will decrease as the episode increase
             # self.var[i] = self.linear_decay(episode, eps_end, noise_start_level)  # self.var[i] will decrease as the episode increase
 
         for i in range(self.n_agents):
@@ -480,7 +491,8 @@ class MADDPG:
             final_variance = end_scale
         return final_variance
 
-    def get_custom_linear_scaling_factor(self, episode, eps_end, start_scale=1, end_scale=0.03):
+    # def get_custom_linear_scaling_factor(self, episode, eps_end, start_scale=1, end_scale=0.03):
+    def get_custom_linear_scaling_factor(self, episode, eps_end, start_scale=1, end_scale=0):
         # Calculate the slope of the linear decrease only up to eps_end
         if episode <= eps_end:
             slope = (end_scale - start_scale) / (eps_end - 1)

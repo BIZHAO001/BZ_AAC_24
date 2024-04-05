@@ -47,10 +47,10 @@ class MADDPG:
         # self.critics = [CriticNetwork(critic_dim, n_agents, dim_act) for _ in range(n_agents)]
         # self.critics = [CriticNetwork_wGru(critic_dim, n_agents, dim_act, gru_history_length) for _ in range(n_agents)]
         if full_observable_critic_flag:
-            self.critics = [critic_ATT_combine_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length,
-                                                      actor_hidden_state_size) for _ in range(n_agents)]
-            # self.critics = [critic_combine_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length,
+            # self.critics = [critic_ATT_combine_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length,
             #                                           actor_hidden_state_size) for _ in range(n_agents)]
+            self.critics = [critic_combine_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length,
+                                                      actor_hidden_state_size) for _ in range(n_agents)]   # no critic attention
         else:
             self.critics = [critic_single_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]
         # self.critics = [critic_single_OnePortion(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]

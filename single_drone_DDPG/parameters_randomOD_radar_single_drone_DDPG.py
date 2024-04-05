@@ -38,9 +38,9 @@ def initialize_parameters():
     bound = [xlow, xhigh, ylow, yhigh]
 
     # generate static env from shape file
-    shapePath = 'D:\lakesideMap\lakeSide.shp'
+    # shapePath = 'D:\lakesideMap\lakeSide.shp'
     # shapePath = 'F:\githubClone\deep_Q_learning\DQN_new_framework\lakesideMap\lakeSide.shp'
-    # shapePath = 'D:\github_clone\Multi_agent_AAC\MA_ver1\lakesideMap\lakeSide.shp'
+    shapePath = 'D:\deep_Q_learning\DQN_new_framework\lakesideMap\lakeSide.shp'
     staticEnv = env_generation(shapePath, bound)  # it is a tuple of 4 element, 1st is the 2D binary array of the filled map, 2nd is the list of all buildings expressed as polygons, 3rd is the gird length, 4th element is a list of length 1, inside has 2 element. 0th element is the occupied polygon, 1st element is the unoccupied polygon
     seed = 3407  # this seed is only used for torch manuel.seed
     # set boundary

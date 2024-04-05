@@ -148,7 +148,6 @@ class ActorNetwork_TwoPortion(nn.Module):
         self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.ReLU())
         self.own_grid = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.ReLU())
         self.merge_feature = nn.Sequential(nn.Linear(64+64, 128), nn.ReLU())
-        # self.merge_feature_l2 = nn.Sequential(nn.Linear(64+64, 128), nn.ReLU())  # this is just a dummy
         self.act_out = nn.Sequential(nn.Linear(128, n_actions), nn.Tanh())
 
     def forward(self, cur_state):
@@ -542,8 +541,22 @@ class critic_combine_TwoPortion(nn.Module):
         ])  # nn.ModuleList we can use a list comprehension to do.
 
         self.combine_agents_fea = nn.Sequential(nn.Linear(128+128+128, 256), nn.ReLU())
+        # self.combine_agents_fea = nn.Sequential(nn.Linear(128+128+128, 512), nn.ReLU())
         self.out_feature_q = nn.Sequential(nn.Linear(256, 1))
+        # self.out_feature_q = nn.Sequential(nn.Linear(512, 1))
         # end of yc_v1 #
+
+        # ---- yc_v1_1 -----#
+        # self.individual_agent_layers = nn.ModuleList([
+        #     nn.Sequential(
+        #         nn.Linear(critic_obs[0]+critic_obs[1], 128),
+        #         nn.ReLU(),
+        #     ) for _ in range(n_agents)
+        # ])  # nn.ModuleList we can use a list comprehension to do.
+        #
+        # self.combine_agents_fea = nn.Sequential(nn.Linear(128+128+128+(n_agents*n_actions), 256), nn.ReLU())
+        # self.out_feature_q = nn.Sequential(nn.Linear(256, 1))
+        # ----- end of yc_v1_1 -----#
 
         # yc_v2 #
         # self.combine_obs_action = nn.Sequential(nn.Linear(((critic_obs[0]+critic_obs[1])*n_agents) +
@@ -577,6 +590,23 @@ class critic_combine_TwoPortion(nn.Module):
         merge_feature = self.combine_agents_fea(merge_all_agent)
         q = self.out_feature_q(merge_feature)
         # --- end of v1 ---
+
+        # ---- yc_v1_1 ----
+        # agent_features = []
+        # for agent_idx in range(self.n_agents):
+        #     agent_obs = torch.cat((combine_state[0][:, agent_idx,:], combine_state[1][:, agent_idx,:]), dim=1)
+        #     if isinstance(combine_action, list):
+        #         agent_act = combine_action[agent_idx]
+        #     else:
+        #         agent_act = combine_action[:, agent_idx, :]
+        #     single_agent_feature = self.individual_agent_layers[agent_idx](agent_obs)
+        #     single_agent_feature_Wact = torch.cat((single_agent_feature, agent_act), dim=1)  # obs_fea + action
+        #     agent_features.append(single_agent_feature_Wact)
+        #
+        # merge_all_agent = torch.cat(agent_features, dim=1)
+        # merge_feature = self.combine_agents_fea(merge_all_agent)
+        # q = self.out_feature_q(merge_feature)
+        #----- end of yc_v1_1 ----
 
         # ----- yc_v2 ----
         # agent_obs_list = []

@@ -347,17 +347,20 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
-    get_evaluation_status = True  # have figure output
-    # get_evaluation_status = False  # no figure output, mainly obtain collision rate
+    # get_evaluation_status = True  # have figure output
+    get_evaluation_status = False  # no figure output, mainly obtain collision rate
 
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
 
-    full_observable_critic_flag = True
-    # full_observable_critic_flag = False
+    # full_observable_critic_flag = True
+    full_observable_critic_flag = False
+
+    # transfer_learning = True
+    transfer_learning = False
 
     if use_wanDB:
         wandb.login(key="efb76db851374f93228250eda60639c70a93d1ec")
@@ -391,11 +394,11 @@ def main(args):
         # critic_dim = [ea_dim * total_agentNum for ea_dim in actor_dim]
     else:
         # actor_dim = [6, 18, 6]  # dim host, maximum dim grid, dim other drones
-        # actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
-        actor_dim = [26, 18, 6]
+        actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
+        # actor_dim = [26, 18, 6]
         # critic_dim = [6, 18, 6]
-        # critic_dim = [8, 18, 6]
-        critic_dim = [26, 18, 6]
+        critic_dim = [8, 18, 6]
+        # critic_dim = [26, 18, 6]
 
     actor_hidden_state = 64
     actor_hidden_state_list = [actor_hidden_state for _ in range(total_agentNum)]
@@ -411,6 +414,7 @@ def main(args):
 
     actorNet_lr = 0.001
     criticNet_lr = 0.001
+    # criticNet_lr = 0.0005
 
     # noise parameter ini
     largest_Nsigma = 0.5
@@ -437,9 +441,9 @@ def main(args):
     eps_check_collision = []
     eps_noise_record = []
     episode_critic_loss_cal_record = []
-    # eps_end = 3000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
-    # eps_end = round(args.max_episodes / 2)  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     eps_end = 8000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
+    # eps_end = round(args.max_episodes / 2)  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
+    # eps_end = 8000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     noise_start_level = 1
     training_start_time = time.time()
 
@@ -458,10 +462,12 @@ def main(args):
     if args.mode == "eval":
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
-        # args.max_episodes = 100
-        args.max_episodes = 20
-        pre_fix = r'D:\MADDPG_2nd_jp\060224_16_10_53\interval_record_eps'
-        episode_to_check = str(31000)
+        args.max_episodes = 100
+        # args.max_episodes = 20
+        pre_fix = r'D:\MADDPG_2nd_jp\160224_11_08_01\interval_record_eps'
+        # episode_to_check = str(10000)
+        # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
+        episode_to_check = str(35000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
         load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_agent_2actor_net.pth'
@@ -470,7 +476,15 @@ def main(args):
 
         # model.load_model([load_filepath_0, load_filepath_1, load_filepath_2, load_filepath_3, load_filepath_4])
         model.load_model([load_filepath_0, load_filepath_1, load_filepath_2])
-
+    else:
+        if transfer_learning:
+            pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
+            episode_to_check = str(21000)
+            load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
+            load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
+            load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_agent_2actor_net.pth'
+            model.load_model([load_filepath_0, load_filepath_1, load_filepath_2])
+            print("training start with transfer learning (pre-loaded actor model)")
     # while episode < args.max_episodes:
     while episode < args.max_episodes:  # start of an episode
 
@@ -653,10 +667,13 @@ def main(args):
                     model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
 
                 # accum_reward = accum_reward + reward_aft_action[0]  # we just take the first agent's reward, because we are using a joint reward, so all agents obtain the same reward.
-                accum_reward = accum_reward + sum(reward_aft_action)
+                if full_observable_critic_flag:
+                    accum_reward = accum_reward + reward_aft_action[0]  # when using combine critic, all 3 agent's reward are the same, we just need to record 1.
+                else:
+                    accum_reward = accum_reward + sum(reward_aft_action)
 
                 step_update_time_start = time.time()
-                c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, wandb, full_observable_critic_flag)  # last working learning framework
+                c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, wandb, full_observable_critic_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
                 # print("current step update time used is {} milliseconds".format(update_time_used))
                 cur_state = next_state
@@ -675,7 +692,7 @@ def main(args):
                     print("Some agent triggers termination condition like collision, current episode {} ends at step {}".format(episode, step-1))  # we need to -1 here, because we perform step + 1 after each complete step. Just to be consistent with the step count inside the reward function.
                 elif all([agent.reach_target for agent_idx, agent in env.all_agents.items()]):
                     episode_decision[2] = True
-                    print("All agents have reached their destinations, episode terminated.")
+                    print("All agents have reached their destinations at step {}, episode {} terminated.".format(step-1, episode))
                     # show termination condition in picture when termination condition reached.
                     # os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
                     # matplotlib.use('TkAgg')
@@ -1065,8 +1082,9 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=35000, type=int)  # run for a total of 50000 episodes
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="train", type=str, help="train/eval")
-    parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
+    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
+    parser.add_argument('--episode_length', default=50, type=int)  # maximum play per episode
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
     parser.add_argument('--batch_size', default=512, type=int)  # original 512

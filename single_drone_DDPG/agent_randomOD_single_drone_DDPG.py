@@ -35,6 +35,7 @@ class Agent:
         self.waypoints = None
         self.ref_line = None
         self.heading = None
+        self.collision = False
         # self.detectionRange = 30  # in meters, this is the in diameter
         # self.detectionRange = 40  # in meters, this is the in diameter
         self.detectionRange = 30  # in meters, this is the in diameter
