@@ -651,7 +651,6 @@ class MADDPG:
         #     if self.var[i] > 0.05:  # noise decrease at every step instead of every episode.
         #         self.var[i] = self.var[i] * 0.999998
         # self.steps_done += 1
-
         return actions.data.cpu().numpy(), noise_value, gru_history_input.squeeze(0).data.cpu(), act_hn.data.cpu()  # NOTE: tensor.data.cpu() is to make the tensor's "is_leaf" = True, this also prevent the error message on line "retain_graph=True"
         # return actions.data.cpu().numpy(), noise_value, gru_history_input.squeeze(0).data.cpu()  # NOTE: tensor.data.cpu() is to make the tensor's "is_leaf" = True, this also prevent the error message on line "retain_graph=True"
         # return actions.data.cpu().numpy(), noise_value

@@ -2672,12 +2672,12 @@ class env_simulator:
             # dist_to_goal = 0
             # coef_ref_line = 0.5
             # coef_ref_line = -10
-            # coef_ref_line = 3
+            coef_ref_line = 3
             # coef_ref_line = 5
             # coef_ref_line = 3.5
             # coef_ref_line = 2
             # coef_ref_line = 0
-            coef_ref_line = 1
+            # coef_ref_line = 1
 
             norm_cross_track_deviation_x = x_error * self.normalizer.x_scale
             norm_cross_track_deviation_y = y_error * self.normalizer.y_scale
@@ -2723,8 +2723,24 @@ class env_simulator:
             if detection_circle_refLine_intersect is not None:
                 POI = np.array([detection_circle_refLine_intersect.x, detection_circle_refLine_intersect.y])
                 tangent_vector = (POI - drone_obj.pos) / np.linalg.norm(POI - drone_obj.pos)
-                direction_reward = np.dot(drone_obj.vel, tangent_vector) # -1 ~ 1
-                dist_to_ref_line = coef_ref_line * direction_reward
+                # vel_unit_vector = drone_obj.vel / (np.sqrt(drone_obj.vel[0]**2 + drone_obj.vel[1]**2))
+                # prevent having divide by zero or inf value.
+                if not np.all(np.isfinite(drone_obj.vel)):
+                    # Handle the case where velocity is NaN or Inf
+                    # e.g., by setting vel_unit_vector to zero or some default value
+                    vel_unit_vector = np.zeros_like(drone_obj.vel)
+                else:
+                    # Proceed with division
+                    magnitude = np.sqrt(drone_obj.vel[0] ** 2 + drone_obj.vel[1] ** 2)
+                    if magnitude == 0:
+                        vel_unit_vector = np.zeros_like(drone_obj.vel)
+                    else:
+                        vel_unit_vector = drone_obj.vel / magnitude
+                direction_reward = np.dot(vel_unit_vector, tangent_vector)  # -1 ~ 1
+                if direction_reward == 0:
+                    dist_to_ref_line = -1  # if the current heading has no projection onto the desired heading we penalty the action as well.
+                else:
+                    dist_to_ref_line = coef_ref_line * direction_reward
             else:
                 dist_to_ref_line = -1
             # cross track v5 (using heading angle)
