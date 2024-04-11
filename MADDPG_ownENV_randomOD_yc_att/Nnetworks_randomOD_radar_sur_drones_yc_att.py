@@ -168,7 +168,6 @@ class ActorNetwork_ATT_TwoPortion(nn.Module):
         self.own_grid = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.ReLU())
         self.neigh_fc = nn.Sequential(nn.Linear(actor_dim[2], 64), nn.ReLU())
         self.merge_feature = nn.Sequential(nn.Linear(64+64+64, 256), nn.ReLU())
-        # self.merge_feature_l2 = nn.Sequential(nn.Linear(64+64, 128), nn.ReLU())  # this is just a dummy
         self.act_out = nn.Sequential(nn.Linear(256, n_actions), nn.Tanh())
 
         # attention

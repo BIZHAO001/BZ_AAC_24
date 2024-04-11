@@ -16,6 +16,71 @@ import matplotlib.pyplot as plt
 from shapely.strtree import STRtree
 from shapely.geometry import LineString, Point, Polygon
 import matplotlib.colors as colors
+from shapely.ops import nearest_points
+
+
+def total_length_to_end_of_line_without_cross(initial_point, linestring):
+    """
+    Calculate the total distance from an initial point to the nearest point on the line and
+    from there to the end of the line.
+
+    Parameters:
+    initial_point (tuple): The initial point as (x, y).
+    linestring (LineString): The LineString object.
+
+    Returns:
+    float: The total distance from the initial point to the end of the LineString.
+    """
+    # Create a Point object from the tuple
+    point = Point(initial_point)
+
+    # Find the nearest point on the line to the initial point
+    nearest_point_on_line = linestring.interpolate(linestring.project(point))
+
+    # Calculate the distance from the nearest point on the line to the end of the line
+    projected_distance = linestring.project(nearest_point_on_line)
+    distance_to_end_of_line = linestring.length - projected_distance
+
+    return distance_to_end_of_line
+
+
+def compute_projected_velocity(vehicle_velocity, reference_path, vehicle_position):
+    # Find the closest point on the path to the vehicle's current position
+    closest_point = nearest_points(reference_path, vehicle_position)[0]
+    # Check if the closest point is a turning point
+    turning_points = [Point(p) for p in reference_path.coords[1:-1]]  # Exclude the first and last points
+    # If closest_point is a turning point, use the outgoing path segment for tangent calculation
+    if closest_point in turning_points:
+        # Find the index of the turning point in the list of points
+        turning_index = turning_points.index(closest_point)
+
+        # The outgoing segment starts from the turning point
+        segment_start = np.array(reference_path.coords[turning_index + 1])
+        segment_end = np.array(reference_path.coords[turning_index + 2])
+
+        # Calculate the tangent vector (unit vector) of the segment
+        tangent_vector = (segment_end - segment_start) / np.linalg.norm(segment_end - segment_start)
+
+        # Project the vehicle's velocity onto the tangent vector
+        projected_velocity = np.dot(vehicle_velocity, tangent_vector) * tangent_vector
+    else:
+        # If it's not a turning point, just find the index of the closest segment
+        distance_along_line = reference_path.project(closest_point)
+        # Find the segment that contains this distance
+        cumulative_distance = 0
+        for i in range(len(reference_path.coords) - 1):
+            segment_start = np.array(reference_path.coords[i])
+            segment_end = np.array(reference_path.coords[i + 1])
+            segment_length = LineString([segment_start, segment_end]).length
+            cumulative_distance += segment_length
+            if cumulative_distance > distance_along_line:
+                break
+        # Compute the tangent vector as before
+        tangent_vector = (segment_end - segment_start) / np.linalg.norm(segment_end - segment_start)
+        # Project the vehicle's velocity onto the tangent vector
+        projected_velocity = np.dot(vehicle_velocity, tangent_vector) * tangent_vector
+    return projected_velocity
+
 
 def total_length_to_end_of_line(initial_point, linestring):
    """

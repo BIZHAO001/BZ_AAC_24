@@ -51,6 +51,7 @@ class Agent:
         self.removed_goal = None
         self.update_count = 0
         self.reach_target = False
+        self.collision = False
         self.collide_wall_count = 0
 
     def choose_actions(self, observation):

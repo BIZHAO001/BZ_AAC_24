@@ -300,6 +300,7 @@ class env_simulator:
             # make sure we reset reach target
             self.all_agents[agentIdx].reach_target = False
             self.all_agents[agentIdx].collide_wall_count = 0
+            self.all_agents[agentIdx].collision = False
 
             # large_start = [random_start_pos[0] / self.gridlength, random_start_pos[1] / self.gridlength]
             # large_end = [random_end_pos[0] / self.gridlength, random_end_pos[1] / self.gridlength]
@@ -395,35 +396,36 @@ class env_simulator:
 
         # overall_state, norm_overall_state = self.cur_state_norm_state_fully_observable(agentRefer_dict)
         # print('time used is {}'.format(time.time() - start_time))
-        overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, \
-        all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
+        overall_state, norm_overall_state, polygons_list, prob_display = self.cur_state_norm_state_v3(agentRefer_dict)
 
         # we set up geo-fence area here
-        for _ in range(1):  # we create 3 centre points for generate temporary geo-fence
+        for _ in range(1):  # we create 1 centre points for generate temporary geo-fence
             # get the nearest point from the host drone's pos to its ref line
+
+            # Distances from the start and end points of the LineString
+            # we ensure the geo-fence will not cover the start and end point.
+            distance_from_start = 7.5
+            distance_from_end = 7.5
+            # Check if the LineString is long enough
+            if self.all_agents[0].ref_line.length > (distance_from_start + distance_from_end):
+                # The line is long enough; calculate the length of the target segment
+                segment_length = self.all_agents[0].ref_line.length - (distance_from_start + distance_from_end)
+                # Generate a random distance along the segment
+                random_distance_along_segment = random.uniform(0, segment_length)
+                # Calculate the actual distance from the start of the LineString
+                actual_distance = distance_from_start + random_distance_along_segment
+                # Interpolate the random point along the LineString
+                point_on_line = self.all_agents[0].ref_line.interpolate(actual_distance)
+            else:
+                # The line is not long enough; interpolate the midpoint of the LineString
+                point_on_line = self.all_agents[0].ref_line.interpolate(self.all_agents[0].ref_line.length / 2)
+
             nearest_points = self.all_agents[0].ref_line.interpolate(self.all_agents[0].ref_line.project(Point(self.all_agents[0].pos)))
 
             # Fixed distance within which the point should be generated
             fixed_distance = 2.5  # don't deviate from ref line too far
 
-            # Distance from the start of the line to point P
-            dist_linestart_Tonearest_points = self.all_agents[0].ref_line.project(nearest_points)
-
-            # Distance from nearest_points to the new geo-fence centre
-            spawn_threshold = 20  # will only spawn at least 20 meters from the host's current point
-            end_of_line = self.all_agents[0].ref_line.length - dist_linestart_Tonearest_points - spawn_threshold
-            if end_of_line < spawn_threshold:  # meaning the total length of the distance is quite short
-                spawn_threshold = 5  # we still generate geo-fence, but nearer to the drone
-                end_of_line = self.all_agents[0].ref_line.length - dist_linestart_Tonearest_points
-            distance_from_nearest_points = random.randint(spawn_threshold, end_of_line)
-
-            # Total distance from the start of the line to the new geo-fence centre
-            total_distance = dist_linestart_Tonearest_points + distance_from_nearest_points
-
-            # Get a point on the LineString at the random distance
-            point_on_line = self.all_agents[0].ref_line.interpolate(total_distance)
-
-            # Generate a random bearing and distance
+           # Generate a random bearing and distance
             random_bearing = random.uniform(0, 2 * math.pi)  # Angle in radians
             random_distance_from_point = random.uniform(0, fixed_distance)
 
@@ -1054,28 +1056,28 @@ class env_simulator:
                                 intersection_point_list.append(min_intersection_pt)
 
                     # make sure each look there are only one minimum intersection point
-                    distances.append([min_distance, building_nearest_flag])
+                    distances.append([min_distance, building_nearest_flag, min_intersection_pt])
                     mini_intersection_list.append(min_intersection_pt)
                 else:
                     # If no intersections, the distance is the length of the line segment
-                    distances.append([line.length, building_nearest_flag])
+                    distances.append([line.length, building_nearest_flag, min_intersection_pt])
                 # ------ end of check intersection on polygon or boundaries ------
 
                 # Now we compare the minimum distance of intersection for both polygons and drones
                 # whichever is short, we will load into the last list.
 
                 if drone_min_dist < min_distance:   # one of the other drone is nearer to cur drone
-                    # replace the minimum distance and minimum intersection point
-                    distances[-1] = [drone_min_dist, drone_nearest_flag]
                     if len(mini_intersection_list) == 0:  # if no building polygon surrounding the host drone, mini_intersection_list will not be populated
                         mini_intersection_list.append(drone_nearest_pt)
                     else:
                         mini_intersection_list[-1] = drone_nearest_pt
+                    # replace the minimum distance and minimum intersection point
+                    distances[-1] = [drone_min_dist, drone_nearest_flag, drone_nearest_pt]
 
             all_agent_ed_pos.append(ed_points)
             all_agent_intersection_point_list.append(intersection_point_list)  # this is to save all intersection point for each agent
             all_agent_line_collection.append(line_collection)
-            all_agent_mini_intersection_list.append(mini_intersection_list)
+            all_agent_mini_intersection_list.append(mini_intersection_list)  # this is only used when radar include other drone in its detection
             self.all_agents[agentIdx].observableSpace = distances
             # ------------- end of create radar --------------- #
 
@@ -1167,7 +1169,8 @@ class env_simulator:
         norm_overall.append(norm_overall_state_p2)
         norm_overall.append(norm_overall_state_p3)
         # print("rest compute time is {} milliseconds".format((time.time() - rest_compu_time) * 1000))
-        return overall, norm_overall, polygons_list_wBound, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list
+        prob_display = [all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list]
+        return overall, norm_overall, polygons_list_wBound, prob_display
 
     def cur_state_norm_state_fully_observable(self, agentRefer_dict):
         overall = []
@@ -1779,14 +1782,15 @@ class env_simulator:
         # return reward, done, check_goal, step_reward_record, agent_filled
         return reward, done, check_goal, step_reward_record
 
-    def ss_reward(self, current_ts, step_reward_record, eps_status_holder, step_collision_record, xy, full_observable_critic_flag):
+    def ss_reward(self, current_ts, step_reward_record, eps_status_holder, step_collision_record, xy, full_observable_critic_flag, args, prob_display):
         bound_building_check = [False] * 3
         reward, done = [], []
         agent_to_remove = []
         one_step_reward = []
         check_goal = [False] * len(self.all_agents)
         reward_record_idx = 0  # this is used as a list index, increase with for loop. No need go with agent index, this index is also shared by done checking
-        crash_penalty_wall = 5
+        # crash_penalty_wall = 5
+        crash_penalty_wall = 20
         big_crash_penalty_wall = 200
         crash_penalty_drone = 1
         # reach_target = 1
@@ -1859,7 +1863,6 @@ class env_simulator:
                 if dist_difference <= 5 + drone_obj.protectiveBound:  # 5 is the radius of the geo-fence circle
                     collide_geo_fence = 1
                     break
-
 
             # check whether current actions leads to a collision with any buildings in the airspace
             # -------- check collision with building V1-------------
@@ -1950,15 +1953,19 @@ class env_simulator:
                 wp_intersect_flag = False
             # ------ end of using sequence wp reaching method ----------
 
-
             # ------------- pre-processed condition for a normal step -----------------
             # rew = 3
             rew = 0
             # rew = -3
-            survival_penalty = -2
+            # survival_penalty = -2
+            survival_penalty = 0
             # dist_to_goal_coeff = 1
             dist_to_goal_coeff = 1
+            # dist_to_goal_coeff = 0
+            # dist_to_goal_coeff = 3
 
+            cross_err_distance, x_error, y_error = self.cross_track_error(host_current_point,
+                                                                          drone_obj.ref_line)  # deviation from the reference line, cross track error
             x_norm, y_norm = self.normalizer.nmlz_pos(drone_obj.pos)
             tx_norm, ty_norm = self.normalizer.nmlz_pos(drone_obj.goal[-1])
             # dist_to_goal = dist_to_goal_coeff * math.sqrt(((x_norm-tx_norm)**2 + (y_norm-ty_norm)**2))  # 0~2.828 at each step
@@ -1969,8 +1976,24 @@ class env_simulator:
             after_dist_hg = np.linalg.norm(drone_obj.pos - next_wp)  # distance to goal after action
             # dist_to_goal = dist_to_goal_coeff * (before_dist_hg - after_dist_hg)  # (before_dist_hg - after_dist_hg) -max_vel - max_vel
 
-            dist_left = total_length_to_end_of_line(drone_obj.pos, drone_obj.ref_line)
+            # ---- v2 leading to goal reward, based on compute_projected_velocity ---
+            pro_vel_coef = 0.5
+            projected_velocity = compute_projected_velocity(drone_obj.vel, drone_obj.ref_line, Point(drone_obj.pos))
+            # get the norm as the projected_velocity.
+            pro_vel_rd = pro_vel_coef * np.linalg.norm(projected_velocity)
+            # ---- end of v2 leading to goal reward, based on compute_projected_velocity ---
+
+            # dist_left = total_length_to_end_of_line(drone_obj.pos, drone_obj.ref_line)  # V1
+            dist_left = total_length_to_end_of_line_without_cross(drone_obj.pos, drone_obj.ref_line)  # V1.1
             dist_to_goal = dist_to_goal_coeff * (1 - (dist_left / drone_obj.ref_line.length))
+
+            # dist_to_goal = dist_to_goal_coeff * pro_vel_rd
+            # if cross_err_distance <= 5:
+            # if cross_err_distance <= 2.5:
+            #     dist_to_goal = dist_to_goal_coeff * (1 - (dist_left / drone_obj.ref_line.length))
+            #     # dist_to_goal = dist_to_goal_coeff * pro_vel_rd
+            # else:
+            #     dist_to_goal = 0
 
             if dist_to_goal >= drone_obj.maxSpeed:
                 print("dist_to_goal reward out of range")
@@ -1996,21 +2019,23 @@ class env_simulator:
             seg_reward = dist_to_seg_coeff * 0
             # -------- end of small segment reward ----------
 
-
             # dist_to_goal = 0
             # coef_ref_line = 0.5
             # coef_ref_line = -10
             # coef_ref_line = 3
-            coef_ref_line = 5
-            # coef_ref_line = 0
-            cross_err_distance, x_error, y_error = self.cross_track_error(host_current_point, drone_obj.ref_line)  # deviation from the reference line, cross track error
+            # coef_ref_line = 5
+            # coef_ref_line = 3.5
+            # coef_ref_line = 2
+            coef_ref_line = 0
+
             norm_cross_track_deviation_x = x_error * self.normalizer.x_scale
             norm_cross_track_deviation_y = y_error * self.normalizer.y_scale
             # dist_to_ref_line = coef_ref_line*math.sqrt(norm_cross_track_deviation_x ** 2 +
             #                                            norm_cross_track_deviation_y ** 2)
 
             # cross_track_threshold = 5
-            cross_track_threshold = 15*math.sqrt(2)
+            # cross_track_threshold = 15*math.sqrt(2)
+            cross_track_threshold = 2.5+5+2.5
             # cross_track_threshold = drone_obj.protectiveBound
 
             if cross_err_distance <= cross_track_threshold:
@@ -2064,10 +2089,9 @@ class env_simulator:
             m = (0-1)/(turningPtConst-drone_obj.protectiveBound)  # we must consider drone's circle, because when min_distance is less than drone's radius, it is consider collision.
             if min_dist>=drone_obj.protectiveBound and min_dist<=turningPtConst:
                 near_building_penalty = near_building_penalty_coef*(m*min_dist+c)  # at each step, penalty from 3 to 0.
+                # near_building_penalty = near_building_penalty_coef*(m*min_dist+c) + pro_vel_rd  # at each step, penalty from 3 to 0.
             else:
                 near_building_penalty = 0  # if min_dist is outside of the bound, other parts of the reward will be taking care.
-
-
 
             # if min_dist < drone_obj.protectiveBound:
             #     print("check for collision")
@@ -2085,17 +2109,19 @@ class env_simulator:
             # must use "host_passed_volume", or else, we unable to confirm whether the host's circle is at left or right of the boundary lines
             if x_left_bound.intersects(host_passed_volume) or x_right_bound.intersects(host_passed_volume) or y_bottom_bound.intersects(host_passed_volume) or y_top_bound.intersects(host_passed_volume):
                 print("drone_{} has crash into boundary at time step {}".format(drone_idx, current_ts))
-                rew = rew - crash_penalty_wall - small_step_penalty - near_building_penalty
+                rew = rew - crash_penalty_wall
                 done.append(True)
                 bound_building_check[0] = True
+                drone_obj.collision = True
                 # done.append(False)
                 reward.append(np.array(rew))
             # # crash into buildings or crash with other neighbors
             elif collide_building == 1:
                 # done.append(True)
                 done.append(True)
+                drone_obj.collision = True
                 bound_building_check[1] = True
-                rew = rew - crash_penalty_wall - small_step_penalty - near_building_penalty
+                rew = rew - crash_penalty_wall
                 # rew = rew - big_crash_penalty_wall
                 reward.append(np.array(rew))
             # # ---------- Termination only during collision to wall on the 3rd time -----------------------
@@ -2116,13 +2142,15 @@ class env_simulator:
             elif collide_geo_fence == 1:
                 done.append(True)
                 bound_building_check[1] = True
-                rew = rew - crash_penalty_wall - small_step_penalty - near_building_penalty
+                drone_obj.collision = True
+                rew = rew - crash_penalty_wall
                 reward.append(np.array(rew))
             elif len(collision_drones) > 0:
                 done.append(True)
                 # done.append(False)
                 bound_building_check[2] = True
-                rew = rew - crash_penalty_wall - small_step_penalty - near_building_penalty
+                drone_obj.collision = True
+                rew = rew - crash_penalty_wall
                 reward.append(np.array(rew))
             elif not goal_cur_intru_intersect.is_empty:  # reached goal?
                 # --------------- with way point -----------------------
@@ -2133,9 +2161,11 @@ class env_simulator:
                 rew = rew + reach_target + near_goal_reward
                 reward.append(np.array(rew))
                 done.append(False)
+                # done.append(True)
                 # check if the drone has missed any waypoints
                 if len(drone_obj.waypoints) > 1:  # missed waypoints
-                    print("missed waypoint")
+                    # print("missed waypoint")
+                    pass
                 # check if waypoint swap with the final goal
                 if drone_obj.waypoints[-1] != drone_obj.goal[-1]:
                     print("goal swapped with some intermediate points")
@@ -2157,6 +2187,10 @@ class env_simulator:
                 rew = rew + dist_to_ref_line + dist_to_goal - \
                       small_step_penalty + near_goal_reward - near_building_penalty + seg_reward + survival_penalty
                 # we remove the above termination condition
+                # if current_ts >= args.episode_length:
+                #     done.append(True)
+                # else:
+                #     done.append(False)
                 done.append(False)
                 step_reward = np.array(rew)
                 reward.append(step_reward)
@@ -2176,13 +2210,86 @@ class env_simulator:
             eps_status_holder = self.display_one_eps_status(eps_status_holder, drone_idx, after_dist_hg, [dist_to_goal, cross_err_distance, dist_to_ref_line, near_building_penalty, small_step_penalty, np.linalg.norm(drone_obj.vel), near_goal_reward, seg_reward])
             # overall_status_record[2].append()  # 3rd is accumulated reward till that step for each agent
 
-
         if full_observable_critic_flag:
             reward = [np.sum(reward) for _ in reward]
         # all_reach_target = all(agent.reach_target == True for agent in self.all_agents.values())
         # if all_reach_target:  # in this episode all agents have reached their target at least one
         #     # we cannot just assign a single True to "done", as it must be a list to output from the function.
         #     done = [True, True, True]
+
+        # os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+        # matplotlib.use('TkAgg')
+        # fig, ax = plt.subplots(1, 1)
+        # for agentIdx, agent in self.all_agents.items():
+        #     plt.plot(agent.pos[0], agent.pos[1], marker=MarkerStyle(">", fillstyle="right",
+        #                                                             transform=Affine2D().rotate_deg(
+        #                                                                 math.degrees(agent.heading))),
+        #              color='y')
+        #     plt.plot(agent.goal[-1][0], agent.goal[-1][1], marker='*', color='y', markersize=10)
+        #     plt.text(agent.pos[0], agent.pos[1], agent.agent_name)
+        #     plt.text(agent.pos[0] + 5, agent.pos[1], str(reward[agentIdx]))
+        #     plt.text(agent.pos[0] + 5, agent.pos[1] - 1, str(eps_status_holder[agentIdx][-1][1]))  # dist_to_goal (goal leading reward)
+        #     plt.text(agent.pos[0] + 5, agent.pos[1] - 2, str(eps_status_holder[agentIdx][-1][2]))  # cross_err_distance
+        #     # plot self_circle of the drone
+        #     self_circle = Point(agent.pos[0], agent.pos[1]).buffer(agent.protectiveBound, cap_style='round')
+        #     grid_mat_Scir = shapelypoly_to_matpoly(self_circle, False, 'k')
+        #     ax.add_patch(grid_mat_Scir)
+        #
+        #     # plot drone's detection range
+        #     detec_circle = Point(agent.pos[0], agent.pos[1]).buffer(agent.detectionRange / 2, cap_style='round')
+        #     detec_circle_mat = shapelypoly_to_matpoly(detec_circle, False, 'r')
+        #     # ax.add_patch(detec_circle_mat)
+        #
+        #     # plot drone's range sensor
+        #     for line_to_plot in prob_display[3][agentIdx]:
+        #         prob_x, prob_y = line_to_plot.xy
+        #         plt.plot(prob_x, prob_y, 'green')
+        #     # plot drone's range sensor
+        #     for info_Pt in drone_obj.observableSpace:
+        #         x_coor = [drone_obj.pos[0], info_Pt[2].x]
+        #         y_coor = [drone_obj.pos[1], info_Pt[2].y]
+        #         plt.plot(x_coor, y_coor, 'green')
+        #         plt.text(info_Pt[2].x, info_Pt[2].y, str(round(info_Pt[0], 2)))
+        #
+        #     # ini = agent.ini_pos
+        #     # for wp in agent.ref_line.coords:
+        #     #     plt.plot([wp[0], ini[0]], [wp[1], ini[1]], '--', color='c')
+        #     #     ini = wp
+        #     ref_x, ref_y = agent.ref_line.xy
+        #     plt.plot(ref_x, ref_y, marker='o')  # 'o' adds markers at the points
+        #
+        #
+        # # draw occupied_poly
+        # for one_poly in self.world_map_2D_polyList[0][0]:
+        #     one_poly_mat = shapelypoly_to_matpoly(one_poly, True, 'y', 'b')
+        #     ax.add_patch(one_poly_mat)
+        # # draw non-occupied_poly
+        # for zero_poly in self.world_map_2D_polyList[0][1]:
+        #     zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
+        #     ax.add_patch(zero_poly_mat)
+        #
+        # # show building obstacles
+        # for poly in self.buildingPolygons:
+        #     matp_poly = shapelypoly_to_matpoly(poly, False, 'red')  # the 3rd parameter is the edge color
+        #     # ax.add_patch(matp_poly)
+        #
+        #     # show geo-fence
+        # for geo_fence in self.geo_fence_area:
+        #     fence_poly = shapelypoly_to_matpoly(geo_fence, False, 'red')  # the 3rd parameter is the edge color
+        #     ax.add_patch(fence_poly)
+        # # # show the nearest building obstacles
+        # # nearest_buildingPoly_mat = shapelypoly_to_matpoly(nearest_buildingPoly, True, 'g', 'k')
+        # # ax.add_patch(nearest_buildingPoly_mat)
+        #
+        # # plt.axvline(x=self.bound[0], c="green")
+        # # plt.axvline(x=self.bound[1], c="green")
+        # # plt.axhline(y=self.bound[2], c="green")
+        # # plt.axhline(y=self.bound[3], c="green")
+        #
+        # plt.xlabel("X axis")
+        # plt.ylabel("Y axis")
+        # plt.axis('equal')
+        # # plt.show()
 
         return reward, done, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check
 
@@ -2283,7 +2390,7 @@ class env_simulator:
 
         # next_state, next_state_norm = self.cur_state_norm_state_fully_observable(agentRefer_dict)
         # start_acceleration_time = time.time()
-        next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
+        next_state, next_state_norm, polygons_list, prob_display = self.cur_state_norm_state_v3(agentRefer_dict)
         # print("obtain_current_state, time used {} milliseconds".format(
         #     (time.time() - start_acceleration_time) * 1000))
 
@@ -2378,7 +2485,7 @@ class env_simulator:
         #     fig.canvas.flush_events()
         #     ax.cla()
 
-        return next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list
+        return next_state, next_state_norm, polygons_list, prob_display
 
     def fill_agents(self, max_agent_train, cur_state, norm_cur_state, remove_agent_keys):
         num_lack = int(max_agent_train-len(self.all_agents))

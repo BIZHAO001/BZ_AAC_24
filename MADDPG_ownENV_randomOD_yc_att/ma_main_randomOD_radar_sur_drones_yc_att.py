@@ -40,7 +40,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-device = torch.device('cpu')
+# device = torch.device('cpu')
 
 def main(args):
 
@@ -64,11 +64,11 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
-    # get_evaluation_status = True  # have figure output
-    get_evaluation_status = False  # no figure output, mainly obtain collision rate
+    get_evaluation_status = True  # have figure output
+    # get_evaluation_status = False  # no figure output, mainly obtain collision rate
 
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
@@ -129,8 +129,10 @@ def main(args):
     acc_max = 8
     acc_range = [-acc_max, acc_max]  # NOTE this we need to change
 
-    actorNet_lr = 0.001
+    # actorNet_lr = 0.001
+    actorNet_lr = 0.0005
     criticNet_lr = 0.001
+    # criticNet_lr = 0.0005
 
     # noise parameter ini
     largest_Nsigma = 0.5
@@ -178,10 +180,10 @@ def main(args):
     if args.mode == "eval":
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
-        args.max_episodes = 100
-        # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\130224_12_39_32\interval_record_eps'
-        episode_to_check = str(15000)
+        # args.max_episodes = 100
+        args.max_episodes = 25
+        pre_fix = r'D:\MADDPG_2nd_jp\010324_09_01_53\interval_record_eps'
+        episode_to_check = str(34000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
         load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_agent_2actor_net.pth'
@@ -398,7 +400,7 @@ def main(args):
                 elif (True in done_aft_action):
                     episode_decision[1] = True
                     print("Some agent triggers termination condition like collision, current episode {} ends at step {}".format(episode, step-1))  # we need to -1 here, because we perform step + 1 after each complete step. Just to be consistent with the step count inside the reward function.
-                elif all([agent.reach_target for agent_idx, agent in env.all_agents.items()]):
+                elif all(check_goal):
                     episode_decision[2] = True
                     print("All agents have reached their destinations at step {}, episode {} terminated.".format(step-1, episode))
                     # show termination condition in picture when termination condition reached.
@@ -568,7 +570,7 @@ def main(args):
                 # action = env.get_actions_noCR()  # only update heading, don't update any other attribute
                 # for a_idx, action_ele in enumerate(action):
                 #     action[a_idx] = [-0.3535, 0.3535]
-                next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max)  # no heading update here
+                next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max, actor_dim)  # no heading update here
                 reward_aft_action, done_aft_action, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, eps_status_holder, step_collision_record, dummy_xy, full_observable_critic_flag)
                 # reward_aft_action, done_aft_action, check_goal, step_reward_record = env.get_step_reward_5_v3(step, step_reward_record)
 

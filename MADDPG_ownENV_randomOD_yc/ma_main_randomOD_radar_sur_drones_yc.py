@@ -67,8 +67,8 @@ def main(args):
     use_wanDB = False
     # use_wanDB = True
 
-    # get_evaluation_status = True  # have figure output
-    get_evaluation_status = False  # no figure output, mainly obtain collision rate
+    get_evaluation_status = True  # have figure output
+    # get_evaluation_status = False  # no figure output, mainly obtain collision rate
 
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
@@ -104,18 +104,24 @@ def main(args):
     if full_observable_critic_flag:
         # actor_dim = [6, 18, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
-        actor_dim = [9, 18, 7]  # dim host, maximum dim grid, dim other drones
+        # actor_dim = [9, 18, 7]  # dim host, maximum dim grid, dim other drones
+        # actor_dim = [10, 18, 7]  # dim host, maximum dim grid, dim other drones
+        actor_dim = [11, 18, 7]  # dim host, maximum dim grid, dim other drones
         # critic_dim = [6, 18, 6]
         # critic_dim = [8, 18, 6]
-        critic_dim = [9, 18, 7]
+        # critic_dim = [9, 18, 7]
+        # critic_dim = [10, 18, 7]
+        critic_dim = [11, 18, 7]
         # critic_dim = [ea_dim * total_agentNum for ea_dim in actor_dim]
     else:
         # actor_dim = [6, 18, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
-        actor_dim = [9, 18, 7]  # dim host, maximum dim grid, dim other drones
+        # actor_dim = [9, 18, 7]  # dim host, maximum dim grid, dim other drones
+        actor_dim = [10, 18, 7]  # dim host, maximum dim grid, dim other drones
         # critic_dim = [6, 18, 6]
         # critic_dim = [8, 18, 6]
-        critic_dim = [9, 18, 7]
+        # critic_dim = [9, 18, 7]
+        critic_dim = [10, 18, 7]
 
     actor_hidden_state = 64
     actor_hidden_state_list = [actor_hidden_state for _ in range(total_agentNum)]
@@ -159,6 +165,7 @@ def main(args):
     episode_critic_loss_cal_record = []
     # eps_end = 3000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     eps_end = 8000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
+    # eps_end = 12000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     # eps_end = round(args.max_episodes / 2)  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     noise_start_level = 1
     training_start_time = time.time()
@@ -178,10 +185,11 @@ def main(args):
     if args.mode == "eval":
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
-        args.max_episodes = 100
+        # args.max_episodes = 100
+        args.max_episodes = 20
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\140224_16_02_10\interval_record_eps'
-        episode_to_check = str(14000)
+        pre_fix = r'D:\MADDPG_2nd_jp\080324_09_07_44\interval_record_eps'
+        episode_to_check = str(17000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
         load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_agent_2actor_net.pth'
@@ -251,7 +259,7 @@ def main(args):
                 # reward_aft_action, done_aft_action, check_goal, step_reward_record = env.get_step_reward_5_v3(step, step_reward_record)   # remove reached agent here
 
                 one_step_reward_start = time.time()
-                reward_aft_action, done_aft_action, check_goal, step_reward_record, status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, eps_status_holder, step_collision_record, dummy_xy, full_observable_critic_flag)   # remove reached agent here
+                reward_aft_action, done_aft_action, check_goal, step_reward_record, status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, eps_status_holder, step_collision_record, dummy_xy, full_observable_critic_flag,args)   # remove reached agent here
                 reward_generation_time = (time.time() - one_step_reward_start)*1000
                 # print("current step reward time used is {} milliseconds".format(reward_generation_time))
 
@@ -567,7 +575,7 @@ def main(args):
                 # for a_idx, action_ele in enumerate(action):
                 #     action[a_idx] = [-0.3535, 0.3535]
                 next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max, actor_dim)  # no heading update here
-                reward_aft_action, done_aft_action, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, eps_status_holder, step_collision_record, dummy_xy, full_observable_critic_flag)
+                reward_aft_action, done_aft_action, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, eps_status_holder, step_collision_record, dummy_xy, full_observable_critic_flag, args)
                 # reward_aft_action, done_aft_action, check_goal, step_reward_record = env.get_step_reward_5_v3(step, step_reward_record)
 
                 step += 1

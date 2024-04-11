@@ -179,7 +179,7 @@ def env_generation(shapeFilePath, bound):  # input: string of file path, output:
     gridPoly_ones = []
     gridPoly_zero = []
     outPoly = []
-    cropped_coord_match_actual_coord = {}
+    cropped_coord_match_actual_coord = {}  # after cropping a map, it has its own (0,0), but we still to match it to actual big map's coordinates
     for ix in range(x_higher-x_lower):  # we use x_higher-x_lower, is to ensure the cropped area's 2D array can match the actual polygon in map
         for iy in range(y_higher-y_lower):
             if ((x_lower+ix) * gridLength <= bound[1]) and ((x_lower+ix) * gridLength >= bound[0]) and \
@@ -209,7 +209,7 @@ def env_generation(shapeFilePath, bound):  # input: string of file path, output:
     # plt.axis('equal')
     # plt.show()
 
-    return env_map_bounded, polySet_buildings, gridLength, outPoly, (maxX, maxY) ,cropped_coord_match_actual_coord# return an occupied 3D array
+    return env_map_bounded, polySet_buildings, gridLength, outPoly, (maxX, maxY), cropped_coord_match_actual_coord # return an occupied 3D array
 
 
 def flood_fill_custom(input_2D_array):

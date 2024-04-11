@@ -922,50 +922,50 @@ class env_simulator:
                 min_distance = line.length
 
                 # Build other drone's position circle, and decide the minimum intersection distance from cur host drone to other drone
-                for other_agents_idx, others in self.all_agents.items():
-                    if other_agents_idx == agentIdx:
-                        continue
-                    other_circle = Point(others.pos).buffer(agent.protectiveBound)
-                    # Check if the LineString intersects with the circle
-                    if line.intersects(other_circle):
-                        drone_nearest_flag = 0
-                        # Find the intersection point(s)
-                        intersection = line.intersection(other_circle)
-                        # The intersection could be a Point or a MultiPoint
-                        # If it's a MultiPoint, we'll calculate the distance to the first intersection
-                        if intersection.geom_type == 'MultiPoint':
-                            # Calculate distance from the starting point of the LineString to each intersection point
-                            drone_perimeter_point = min(intersection.geoms, key=lambda point: drone_ctr.distance(point))
-
-                        elif intersection.geom_type == 'Point':
-                            # Calculate the distance from the start of the LineString to the intersection point
-                            drone_perimeter_point = intersection
-                        elif intersection.geom_type in ['LineString', 'MultiLineString']:
-                            # The intersection is a line (or part of the line lies on the circle's edge)
-                            # Find the nearest point on this "intersection line" to the start of the original line
-                            drone_perimeter_point = nearest_points(drone_ctr, intersection)[1]
-                        elif intersection.geom_type == 'GeometryCollection':
-                            complex_min_dist = math.inf
-                            for geom in intersection:
-                                if geom.geom_type == 'Point':
-                                    dist = drone_ctr.distance(geom)
-                                    if dist < complex_min_dist:
-                                        complex_min_dist = dist
-                                        drone_perimeter_point = geom
-                                elif geom.geom_type == 'LineString':
-                                    nearest_geom_point = nearest_points(drone_ctr, geom)[1]
-                                    dist = drone_ctr.distance(nearest_geom_point)
-                                    if dist < complex_min_dist:
-                                        complex_min_dist = dist
-                                        drone_perimeter_point = nearest_geom_point
-                        else:
-                            raise ValueError(
-                                "Intersection is not a point or multipoint, which is unexpected for LineString and Polygon intersection.")
-                        intersection_point_list.append(drone_perimeter_point)
-                        drone_distance = drone_ctr.distance(drone_perimeter_point)
-                        if drone_distance < drone_min_dist:
-                            drone_min_dist = drone_distance
-                            drone_nearest_pt = drone_perimeter_point
+                # for other_agents_idx, others in self.all_agents.items():
+                #     if other_agents_idx == agentIdx:
+                #         continue
+                #     other_circle = Point(others.pos).buffer(agent.protectiveBound)
+                #     # Check if the LineString intersects with the circle
+                #     if line.intersects(other_circle):
+                #         drone_nearest_flag = 0
+                #         # Find the intersection point(s)
+                #         intersection = line.intersection(other_circle)
+                #         # The intersection could be a Point or a MultiPoint
+                #         # If it's a MultiPoint, we'll calculate the distance to the first intersection
+                #         if intersection.geom_type == 'MultiPoint':
+                #             # Calculate distance from the starting point of the LineString to each intersection point
+                #             drone_perimeter_point = min(intersection.geoms, key=lambda point: drone_ctr.distance(point))
+                #
+                #         elif intersection.geom_type == 'Point':
+                #             # Calculate the distance from the start of the LineString to the intersection point
+                #             drone_perimeter_point = intersection
+                #         elif intersection.geom_type in ['LineString', 'MultiLineString']:
+                #             # The intersection is a line (or part of the line lies on the circle's edge)
+                #             # Find the nearest point on this "intersection line" to the start of the original line
+                #             drone_perimeter_point = nearest_points(drone_ctr, intersection)[1]
+                #         elif intersection.geom_type == 'GeometryCollection':
+                #             complex_min_dist = math.inf
+                #             for geom in intersection:
+                #                 if geom.geom_type == 'Point':
+                #                     dist = drone_ctr.distance(geom)
+                #                     if dist < complex_min_dist:
+                #                         complex_min_dist = dist
+                #                         drone_perimeter_point = geom
+                #                 elif geom.geom_type == 'LineString':
+                #                     nearest_geom_point = nearest_points(drone_ctr, geom)[1]
+                #                     dist = drone_ctr.distance(nearest_geom_point)
+                #                     if dist < complex_min_dist:
+                #                         complex_min_dist = dist
+                #                         drone_perimeter_point = nearest_geom_point
+                #         else:
+                #             raise ValueError(
+                #                 "Intersection is not a point or multipoint, which is unexpected for LineString and Polygon intersection.")
+                #         intersection_point_list.append(drone_perimeter_point)
+                #         drone_distance = drone_ctr.distance(drone_perimeter_point)
+                #         if drone_distance < drone_min_dist:
+                #             drone_min_dist = drone_distance
+                #             drone_nearest_pt = drone_perimeter_point
                 # ------------ end of radar check surrounding drone's position -------------------------
 
                 # # If there are intersecting polygons, find the nearest intersection point
@@ -1821,11 +1821,12 @@ class env_simulator:
         reward_record_idx = 0  # this is used as a list index, increase with for loop. No need go with agent index, this index is also shared by done checking
         # crash_penalty_wall = 5
         crash_penalty_wall = 15
+        # crash_penalty_wall = 100
         big_crash_penalty_wall = 200
         crash_penalty_drone = 1
         # reach_target = 1
         reach_target = 5
-        survival_penalty = 3
+        survival_penalty = 0
 
         potential_conflict_count = 0
         final_goal_toadd = 0
@@ -1958,8 +1959,9 @@ class env_simulator:
             # ------------- pre-processed condition for a normal step -----------------
             # rew = 3
             rew = 0
-            # dist_to_goal_coeff = 1
             dist_to_goal_coeff = 1
+            # dist_to_goal_coeff = 0
+            # dist_to_goal_coeff = 2
 
             x_norm, y_norm = self.normalizer.nmlz_pos(drone_obj.pos)
             tx_norm, ty_norm = self.normalizer.nmlz_pos(drone_obj.goal[-1])
@@ -2002,7 +2004,9 @@ class env_simulator:
             # dist_to_goal = 0
             # coef_ref_line = 0.5
             # coef_ref_line = -10
-            coef_ref_line = 3
+            # coef_ref_line = 3
+            coef_ref_line = 1
+            # coef_ref_line = 2
             # coef_ref_line = 1.5
             # coef_ref_line = 0
             cross_err_distance, x_error, y_error = self.cross_track_error(host_current_point, drone_obj.ref_line)  # deviation from the reference line, cross track error
@@ -2017,7 +2021,8 @@ class env_simulator:
                 dist_to_ref_line = coef_ref_line*(m * cross_err_distance + 1)  # 0~1*coef_ref_line
                 # dist_to_ref_line = (coef_ref_line*(m * cross_err_distance + 1)) + coef_ref_line  # 0~1*coef_ref_line, with a fixed reward
             else:
-                dist_to_ref_line = -coef_ref_line*1
+                # dist_to_ref_line = -coef_ref_line*1
+                dist_to_ref_line = -coef_ref_line*0
 
             # small_step_penalty_coef = 3
             small_step_penalty_coef = 0
@@ -2059,7 +2064,7 @@ class env_simulator:
             # # linear building penalty
             # makesure only when min_dist is >=0 and <= turningPtConst, then we activate this penalty
             m = (0-1)/(turningPtConst-drone_obj.protectiveBound)  # we must consider drone's circle, because when min_distance is less than drone's radius, it is consider collision.
-            if min_dist>=drone_obj.protectiveBound and min_dist<=turningPtConst:
+            if min_dist>=drone_obj.protectiveBound and min_dist<=turningPtConst:  # only when min_dist is between 2.5~5, this penalty is working.
                 near_building_penalty = near_building_penalty_coef*(m*min_dist+c)  # at each step, penalty from 3 to 0.
             else:
                 near_building_penalty = 0  # if min_dist is outside of the bound, other parts of the reward will be taking care.
@@ -2110,12 +2115,12 @@ class env_simulator:
             #         rew = rew - dist_to_ref_line - crash_penalty_wall - dist_to_goal - small_step_penalty + near_goal_reward - 20
             #         reward.append(np.array(rew))
             # # ----------End of termination only during collision to wall on the 3rd time -----------------------
-            elif len(collision_drones) > 0:
-                done.append(True)
-                # done.append(False)
-                bound_building_check[2] = True
-                rew = rew - crash_penalty_wall - small_step_penalty - near_building_penalty
-                reward.append(np.array(rew))
+            # elif len(collision_drones) > 0:
+            #     done.append(True)
+            #     # done.append(False)
+            #     bound_building_check[2] = True
+            #     rew = rew - crash_penalty_wall - small_step_penalty - near_building_penalty
+            #     reward.append(np.array(rew))
             elif not goal_cur_intru_intersect.is_empty:  # reached goal?
                 # --------------- with way point -----------------------
                 check_goal[reward_record_idx] = True
@@ -2162,9 +2167,9 @@ class env_simulator:
             eps_status_holder = self.display_one_eps_status(eps_status_holder, drone_idx, after_dist_hg, [dist_to_goal, cross_err_distance, dist_to_ref_line, near_building_penalty, small_step_penalty, np.linalg.norm(drone_obj.vel), near_goal_reward, seg_reward])
             # overall_status_record[2].append()  # 3rd is accumulated reward till that step for each agent
 
-
         if full_observable_critic_flag:
             reward = [np.sum(reward) for _ in reward]
+
         # all_reach_target = all(agent.reach_target == True for agent in self.all_agents.values())
         # if all_reach_target:  # in this episode all agents have reached their target at least one
         #     # we cannot just assign a single True to "done", as it must be a list to output from the function.
