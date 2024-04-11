@@ -43,16 +43,19 @@ class MADDPG:
         # self.actors = [Stocha_actor(actor_dim, dim_act) for _ in range(n_agents)]  # use stochastic policy
         # self.actors = [ActorNetwork_TwoPortion(actor_dim, dim_act) for _ in range(n_agents)]  # use deterministic policy
         # only construct one-model
-        if use_GRU_flag:
-            self.actors = ActorNetwork_GRU_TwoPortion(actor_dim, dim_act, actor_hidden_state_size)
-        elif use_single_portion_selfATT:
-            self.actors = ActorNetwork_ATT(actor_dim, dim_act)
-        elif use_allNeigh_wRadar:
+        if full_observable_critic_flag:
             self.actors = ActorNetwork_allnei_wRadar(actor_dim, dim_act)
-        elif use_selfATT_with_radar:
-            self.actors = ActorNetwork_ATT_wRadar(actor_dim, dim_act)
         else:
-            self.actors = ActorNetwork_TwoPortion(actor_dim, dim_act)
+            if use_GRU_flag:
+                self.actors = ActorNetwork_GRU_TwoPortion(actor_dim, dim_act, actor_hidden_state_size)
+            elif use_single_portion_selfATT:
+                self.actors = ActorNetwork_ATT(actor_dim, dim_act)
+            elif use_allNeigh_wRadar:
+                self.actors = ActorNetwork_allnei_wRadar(actor_dim, dim_act)
+            elif use_selfATT_with_radar:
+                self.actors = ActorNetwork_ATT_wRadar(actor_dim, dim_act)
+            else:
+                self.actors = ActorNetwork_TwoPortion(actor_dim, dim_act)
         # end of only construct one-model
         # self.actors = [ActorNetwork_OnePortion(actor_dim, dim_act) for _ in range(n_agents)]  # use deterministic policy
         # self.actors = [GRUCELL_actor(actor_dim, dim_act, actor_hidden_state_size) for _ in range(n_agents)]  # use deterministic with GRU module policy
@@ -243,6 +246,7 @@ class MADDPG:
         self.train_num = i_episode
 
         if len(self.memory) <= self.batch_size:
+        # if len(self.memory) < self.memory.capacity:
         # if True:
             return None, None, single_eps_critic_cal_record
         # print("learning starts")

@@ -65,8 +65,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    use_wanDB = False
-    # use_wanDB = True
+    # use_wanDB = False
+    use_wanDB = True
 
     # evaluation_by_episode = True
     evaluation_by_episode = False
@@ -79,7 +79,7 @@ def main(args):
 
     # full_observable_critic_flag = True
     full_observable_critic_flag = False
-
+    #
     # transfer_learning = True
     transfer_learning = False
 
@@ -122,23 +122,29 @@ def main(args):
     # critic_dim = [6+(total_agentNum-1)*2, 10, 6]
     if full_observable_critic_flag:
         # actor_dim = [6, 18, 6]  # dim host, maximum dim grid, dim other drones
-        actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
+        # actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
+        actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [26, 18, 6]  # dim host, maximum dim grid, dim other drones
         # critic_dim = [6, 18, 6]
-        critic_dim = [8, 18, 6]
+        # critic_dim = [8, 18, 6]
+        critic_dim = [total_agentNum*9, total_agentNum*36, 6]
         # critic_dim = [26, 18, 6]
         # critic_dim = [ea_dim * total_agentNum for ea_dim in actor_dim]
     else:
         if use_selfATT_with_radar:
+            # actor_dim = [6, (total_agentNum - 1) * 5, 18, 6]
             actor_dim = [6, (total_agentNum - 1) * 5, 18, 6]
+            # critic_dim = [6, (total_agentNum - 1) * 5, 18, 6]
             critic_dim = [6, (total_agentNum - 1) * 5, 18, 6]
         elif use_allNeigh_wRadar:
             # actor_dim = [6, (total_agentNum - 1) * 5, 18, 6]
-            actor_dim = [6, (total_agentNum - 1) * 5, 36, 6]
+            # actor_dim = [7, (total_agentNum - 1) * 6, 36, 6]
+            actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]
             # actor_dim = [6, 1 * 5, 36, 6]
             # actor_dim = [6, 2 * 5, 36, 6]
             # critic_dim = [6, (total_agentNum - 1) * 5, 18, 6]
-            critic_dim = [6, (total_agentNum - 1) * 5, 36, 6]
+            # critic_dim = [7, (total_agentNum - 1) * 6, 36, 6]
+            critic_dim = [9, (total_agentNum - 1) * 8, 36, 6]
             # critic_dim = [6, 1 * 5, 36, 6]
             # critic_dim = [6, 2 * 5, 36, 6]
         else:
@@ -183,9 +189,11 @@ def main(args):
     acc_range = [-acc_max, acc_max]  # NOTE this we need to change
 
     actorNet_lr = 0.001/10
+    # actorNet_lr = 0.0001/5
     # actorNet_lr = 0.0001/2
     # actorNet_lr = 0.001
     criticNet_lr = 0.001/10
+    # criticNet_lr = 0.0001/5
     # criticNet_lr = 0.0001/2
     # criticNet_lr = 0.001
     # criticNet_lr = 0.0005
@@ -256,7 +264,7 @@ def main(args):
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\040424_20_30_41\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\100424_19_40_17\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
         episode_to_check = str(9000)
@@ -339,6 +347,7 @@ def main(args):
 
                 one_step_reward_start = time.time()
                 reward_aft_action, done_aft_action, check_goal, step_reward_record, status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode)   # remove reached agent here
+                # reward_aft_action, done_aft_action, check_goal, step_reward_record, status_holder, step_collision_record, bound_building_check = env.ss_reward_Mar(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode)   # remove reached agent here
                 reward_generation_time = (time.time() - one_step_reward_start)*1000
                 # print("current step reward time used is {} milliseconds".format(reward_generation_time))
 
@@ -757,6 +766,7 @@ def main(args):
                 # nearest_two_drones =
                 next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max, args, evaluation_by_episode)  # no heading update here
                 reward_aft_action, done_aft_action, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode)
+                # reward_aft_action, done_aft_action, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check = env.ss_reward_Mar(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode)
                 # reward_aft_action, done_aft_action, check_goal, step_reward_record = env.get_step_reward_5_v3(step, step_reward_record)
 
                 step += 1
@@ -1042,11 +1052,12 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=20000, type=int)  # run for a total of 50000 episodes
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
     parser.add_argument('--episode_length', default=50, type=int)  # maximum play per episode
     # parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     parser.add_argument('--memory_length', default=int(1e5), type=int)
+    # parser.add_argument('--memory_length', default=int(1e4), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
     parser.add_argument('--batch_size', default=512, type=int)  # original 512
     # parser.add_argument('--batch_size', default=1536, type=int)  # original 512

@@ -13,6 +13,25 @@ import matplotlib
 import numpy as np
 
 
+class OrnsteinUhlenbeckProcess:
+
+    def __init__(self, size, mu=0, theta=0.15, sigma=0.2):
+        self.size = size
+        self.mu = mu
+        self.theta = theta
+        self.sigma = sigma
+        self.state = np.ones(self.size) * self.mu
+        self.reset_states()
+
+    def reset_states(self):
+        self.state = np.ones(self.size) * self.mu
+
+    def sample(self, changing_sigma):
+        x = self.state
+        dx = self.theta * (self.mu - x) + changing_sigma * np.random.randn(len(x))
+        self.state = x + dx
+        return self.state
+
 def get_custom_linear_scaling_factor(episode, eps_end, start_scale=1, end_scale=0.03):
     # # Ensure episode is within the range
     # episode = min(max(1, episode), total_episodes)
@@ -57,38 +76,42 @@ matplotlib.use('TkAgg')
 #
 # plot2 = plt.plot(x_acc_noise, label='Initial_var_1')
 
-# ---------- test noise---------------
+# ---------- test noise ---------------
 x_acc_noise = []
-Total_episode = 50000
-eps_end = 5000
+x1_acc_noise = []
+
+Total_episode = 35000
+eps_end = 8000
 var_ = 1
 var_2 = 0.5
+ou_noise = OrnsteinUhlenbeckProcess(size=2, mu=0, theta=0.2, sigma=var_)
 for each_eps in range(Total_episode):
     # if each_eps > 0:
-    input_var = get_custom_linear_scaling_factor(each_eps, eps_end, var_)
+    input_var = get_custom_linear_scaling_factor(each_eps, eps_end, var_, end_scale=0)
     # input_var_2 = get_custom_linear_scaling_factor(each_eps, eps_end, var_2)
-    noise_value = np.random.randn(2) * input_var
+    noise_value = np.random.randn(2) * input_var  # Gaussian
+    OU_noise_Value = ou_noise.sample(input_var)  # OU_noise
     # noise_value_2 = np.random.randn(2) * input_var_2
     x_acc_noise.append(noise_value[0])
-    # x1_acc_noise.append(noise_value_2[0])
+    x1_acc_noise.append(OU_noise_Value[0])
 
-# plot1 = plt.plot(x_acc_noise, label='my_var_ver')
-# plot2 = plt.plot(x1_acc_noise, label='Initial_var_0.5')
+plot1 = plt.plot(x_acc_noise, label='Initial_var_1', alpha=0.5)
+plot2 = plt.plot(x1_acc_noise, label='OU_noise', alpha=0.5)
 # ---------- end of test noise---------------
 
 # ------------- get noise end episode/step -------------
-ori_var_ = 1
-count = 0
-x_acc_noise_ori = []
-for each_eps in range(Total_episode*50):
-    noise_value_ori = np.random.randn(2) * ori_var_
-    if ori_var_ > 0.05:  # noise decrease at every step instead of every episode.
-        ori_var_ = ori_var_ * 0.999998
-    else:
-        ori_var_ = 0.05
-        # eps = count / 50
-    x_acc_noise_ori.append(noise_value_ori[0])
-plot2 = plt.plot(x_acc_noise_ori, label='ori_var_ver')
+# ori_var_ = 1
+# count = 0
+# x_acc_noise_ori = []
+# for each_eps in range(Total_episode*50):
+#     noise_value_ori = np.random.randn(2) * ori_var_
+#     if ori_var_ > 0.05:  # noise decrease at every step instead of every episode.
+#         ori_var_ = ori_var_ * 0.999998
+#     else:
+#         ori_var_ = 0.05
+#         # eps = count / 50
+#     x_acc_noise_ori.append(noise_value_ori[0])
+# plot2 = plt.plot(x_acc_noise_ori, label='ori_var_ver')
 
 plt.grid(linestyle='-.')
 plt.xlabel('steps taken')

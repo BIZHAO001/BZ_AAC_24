@@ -287,92 +287,129 @@
 # plt.grid(True)
 # plt.show()
 
+# import matplotlib.pyplot as plt
+# import numpy as np
+# import os
+# import matplotlib
+# os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+# matplotlib.use('TkAgg')
+# def line_intersection(line1, line2):
+#     xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+#     ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
+#
+#     def det(a, b):
+#         return a[0] * b[1] - a[1] * b[0]
+#
+#     div = det(xdiff, ydiff)
+#     if div == 0:
+#         raise Exception('lines do not intersect')
+#
+#     d = (det(*line1), det(*line2))
+#     x = det(d, xdiff) / div
+#     y = det(d, ydiff) / div
+#     return x, y
+#
+# # Define the circle parameters
+# radius = 2.5
+# center = (0, 0)
+#
+# # Angles for the lines in radians (converting from degrees)
+# angle_20 = np.deg2rad(20)
+# angle_340 = np.deg2rad(340)
+# angle_0 = np.deg2rad(0)  # North direction
+#
+# # Calculate the end points of the lines from the center
+# line_20_end = (center[0] + radius * np.cos(angle_20), center[1] + radius * np.sin(angle_20))
+# line_340_end = (center[0] + radius * np.cos(angle_340), center[1] + radius * np.sin(angle_340))
+#
+# # Extend the lines far beyond the circle for visual clarity
+# extended_line_20_end = (center[0] + 2 * radius * np.cos(angle_20), center[1] + 2 * radius * np.sin(angle_20))
+# extended_line_340_end = (center[0] + 2 * radius * np.cos(angle_340), center[1] + 2 * radius * np.sin(angle_340))
+#
+# # Tangent lines parallel to the 0 degree line
+# tangent_1_start = (center[0] + radius * np.cos(np.pi/2), center[1] + radius * np.sin(np.pi/2))
+# tangent_2_start = (center[0] - radius * np.cos(np.pi/2), center[1] - radius * np.sin(np.pi/2))
+# tangent_1_end = (tangent_1_start[0] + 10 * np.cos(angle_0), tangent_1_start[1] + 10 * np.sin(angle_0))
+# tangent_2_end = (tangent_2_start[0] + 10 * np.cos(angle_0), tangent_2_start[1] + 10 * np.sin(angle_0))
+#
+# # Calculate the intersection points
+# intersection_20_tangent_1 = line_intersection((center, extended_line_20_end), (tangent_1_start, tangent_1_end))
+# intersection_340_tangent_2 = line_intersection((center, extended_line_340_end), (tangent_2_start, tangent_2_end))
+#
+# # Start plotting
+# fig, ax = plt.subplots()
+#
+# # Draw the circle
+# circle = plt.Circle(center, radius, fill=False, color='blue', linestyle='dashed')
+# ax.add_artist(circle)
+#
+# # Draw the lines from the center as arrows
+# ax.annotate('', xy=line_20_end, xytext=center, arrowprops=dict(arrowstyle='->', color='red'))
+# ax.annotate('', xy=line_340_end, xytext=center, arrowprops=dict(arrowstyle='->', color='red'))
+# # Arrow representing the line from center at 0 degrees
+# # Adjust the arrow length if necessary
+# arrow_length = radius * 1.1  # Slightly longer than the radius
+#
+# # Plot the arrow representing the line from center at 0 degrees
+# ax.annotate('', xy=(center[0], center[1] + arrow_length), xytext=center,
+#             arrowprops=dict(arrowstyle='->', lw=2, color='black', zorder=5), label='0-degree Line')
+#
+# # Draw the tangent lines
+# plt.plot([tangent_1_start[0], tangent_1_end[0]], [tangent_1_start[1], tangent_1_end[1]], 'g--', label='Tangent Lines')
+# plt.plot([tangent_2_start[0], tangent_2_end[0]], [tangent_2_start[1], tangent_2_end[1]], 'g--')
+#
+# # Plot the intersections
+# plt.scatter(*intersection_20_tangent_1, color='purple', zorder=5, label='Intersection Points')
+# plt.scatter(*intersection_340_tangent_2, color='purple', zorder=5)
+#
+# # Set equal aspect ratio
+# ax.set_aspect('equal')
+#
+# # Set labels and title
+# plt.xlabel('X coordinate')
+# plt.ylabel('Y coordinate')
+# plt.title('Circle with Lines and Intersections')
+#
+# # Add a legend
+# plt.legend()
+#
+# # Show the plot with a grid
+# plt.grid(True)
+# plt.show()
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import matplotlib
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 matplotlib.use('TkAgg')
-def line_intersection(line1, line2):
-    xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
-    ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])
 
-    def det(a, b):
-        return a[0] * b[1] - a[1] * b[0]
+def potential_flow_around_circular_obstacle(stream_velocity, obstacle_radius, grid_size):
+    Y, X = np.mgrid[-grid_size:grid_size:100j, -grid_size:grid_size:100j]
+    U = stream_velocity - (obstacle_radius ** 2) * (X ** 2 - Y ** 2) / (X ** 2 + Y ** 2) ** 2
+    V = -2 * obstacle_radius ** 2 * X * Y / (X ** 2 + Y ** 2) ** 2
 
-    div = det(xdiff, ydiff)
-    if div == 0:
-        raise Exception('lines do not intersect')
+    speed = np.sqrt(U ** 2 + V ** 2)
 
-    d = (det(*line1), det(*line2))
-    x = det(d, xdiff) / div
-    y = det(d, ydiff) / div
-    return x, y
+    # Streamlines
+    strm = plt.streamplot(X, Y, U, V, color=speed, linewidth=1, cmap='autumn')
 
-# Define the circle parameters
-radius = 2.5
-center = (0, 0)
+    # Add circle to represent the rock
+    circle = plt.Circle((0, 0), obstacle_radius, color='blue', alpha=0.7)
+    plt.gca().add_patch(circle)
 
-# Angles for the lines in radians (converting from degrees)
-angle_20 = np.deg2rad(20)
-angle_340 = np.deg2rad(340)
-angle_0 = np.deg2rad(0)  # North direction
+    plt.colorbar(strm.lines)
+    plt.xlabel('X Axis')
+    plt.ylabel('Y Axis')
+    plt.title('Potential Flow around a Circular Obstacle')
+    plt.axis('equal')
+    plt.show()
 
-# Calculate the end points of the lines from the center
-line_20_end = (center[0] + radius * np.cos(angle_20), center[1] + radius * np.sin(angle_20))
-line_340_end = (center[0] + radius * np.cos(angle_340), center[1] + radius * np.sin(angle_340))
 
-# Extend the lines far beyond the circle for visual clarity
-extended_line_20_end = (center[0] + 2 * radius * np.cos(angle_20), center[1] + 2 * radius * np.sin(angle_20))
-extended_line_340_end = (center[0] + 2 * radius * np.cos(angle_340), center[1] + 2 * radius * np.sin(angle_340))
+# Define parameters
+stream_velocity = 1.0  # velocity of the stream
+obstacle_radius = 1.0  # radius of the circular obstacle, representing a rock
+grid_size = 5.0  # size of the grid for plotting
 
-# Tangent lines parallel to the 0 degree line
-tangent_1_start = (center[0] + radius * np.cos(np.pi/2), center[1] + radius * np.sin(np.pi/2))
-tangent_2_start = (center[0] - radius * np.cos(np.pi/2), center[1] - radius * np.sin(np.pi/2))
-tangent_1_end = (tangent_1_start[0] + 10 * np.cos(angle_0), tangent_1_start[1] + 10 * np.sin(angle_0))
-tangent_2_end = (tangent_2_start[0] + 10 * np.cos(angle_0), tangent_2_start[1] + 10 * np.sin(angle_0))
-
-# Calculate the intersection points
-intersection_20_tangent_1 = line_intersection((center, extended_line_20_end), (tangent_1_start, tangent_1_end))
-intersection_340_tangent_2 = line_intersection((center, extended_line_340_end), (tangent_2_start, tangent_2_end))
-
-# Start plotting
-fig, ax = plt.subplots()
-
-# Draw the circle
-circle = plt.Circle(center, radius, fill=False, color='blue', linestyle='dashed')
-ax.add_artist(circle)
-
-# Draw the lines from the center as arrows
-ax.annotate('', xy=line_20_end, xytext=center, arrowprops=dict(arrowstyle='->', color='red'))
-ax.annotate('', xy=line_340_end, xytext=center, arrowprops=dict(arrowstyle='->', color='red'))
-# Arrow representing the line from center at 0 degrees
-# Adjust the arrow length if necessary
-arrow_length = radius * 1.1  # Slightly longer than the radius
-
-# Plot the arrow representing the line from center at 0 degrees
-ax.annotate('', xy=(center[0], center[1] + arrow_length), xytext=center,
-            arrowprops=dict(arrowstyle='->', lw=2, color='black', zorder=5), label='0-degree Line')
-
-# Draw the tangent lines
-plt.plot([tangent_1_start[0], tangent_1_end[0]], [tangent_1_start[1], tangent_1_end[1]], 'g--', label='Tangent Lines')
-plt.plot([tangent_2_start[0], tangent_2_end[0]], [tangent_2_start[1], tangent_2_end[1]], 'g--')
-
-# Plot the intersections
-plt.scatter(*intersection_20_tangent_1, color='purple', zorder=5, label='Intersection Points')
-plt.scatter(*intersection_340_tangent_2, color='purple', zorder=5)
-
-# Set equal aspect ratio
-ax.set_aspect('equal')
-
-# Set labels and title
-plt.xlabel('X coordinate')
-plt.ylabel('Y coordinate')
-plt.title('Circle with Lines and Intersections')
-
-# Add a legend
-plt.legend()
-
-# Show the plot with a grid
-plt.grid(True)
-plt.show()
+potential_flow_around_circular_obstacle(stream_velocity, obstacle_radius, grid_size)

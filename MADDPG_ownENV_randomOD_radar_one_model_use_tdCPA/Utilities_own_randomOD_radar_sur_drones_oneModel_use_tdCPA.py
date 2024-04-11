@@ -614,6 +614,12 @@ class NormalizeData:
         y_normalized = 2 * ((y - self.dis_min_y) / (self.dis_max_y - self.dis_min_y)) - 1
         return np.array([x_normalized, y_normalized])
 
+    def reverse_nmlz_pos(self, norm_pos_c):
+        norm_x, norm_y = norm_pos_c[0], norm_pos_c[1]
+        x = ((norm_x+1) / 2) * (self.dis_max_x - self.dis_min_x) + self.dis_min_x
+        y = ((norm_y+1) / 2) * (self.dis_max_y - self.dis_min_y) + self.dis_min_y
+        return np.array([x, y])
+
     def scale_pos(self, pos_c):  # NOTE: this method is essentially same as min-max normalize approach, but we need this appraoch to calculate x & y scale
         x_normalized = self.normalize_min + (pos_c[0] - self.dis_min_x) * self.x_scale
         y_normalized = self.normalize_min + (pos_c[1] - self.dis_min_y) * self.y_scale
@@ -642,9 +648,11 @@ class NormalizeData:
 
     def nmlz_acc(self, cur_acc):
         ax, ay = cur_acc[0], cur_acc[1]
-        ax_normalized = ((ax - self.acc_min) / (self.acc_max-self.acc_min)) * 2 - 1
-        ay_normalized = (ay - self.acc_min) / (self.acc_max-self.acc_min) * 2 - 1
-        return ax_normalized, ay_normalized
+        # ax_normalized = ((ax - self.acc_min) / (self.acc_max-self.acc_min)) * 2 - 1
+        # ay_normalized = (ay - self.acc_min) / (self.acc_max-self.acc_min) * 2 - 1
+        ax_normalized = ax / self.acc_max
+        ay_normalized = ay / self.acc_max
+        return np.array([ax_normalized, ay_normalized])
 
 
 def BetaNoise(action, noise_scale):

@@ -45,6 +45,7 @@ class Agent:
         # which correspond to the observation vector of that neighbor
         self.pre_surroundingNeighbor = {}
         self.surroundingNeighbor = {}
+        self.probe_line = {}
         self.observableSpace = []
         self.target_update_step = None
         self.removed_goal = None
