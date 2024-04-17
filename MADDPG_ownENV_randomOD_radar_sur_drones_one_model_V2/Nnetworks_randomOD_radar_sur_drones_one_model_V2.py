@@ -160,6 +160,25 @@ class ActorNetwork_TwoPortion(nn.Module):
         return out_action
 
 
+class ActorNetwork_allnei_wRadar(nn.Module):
+    def __init__(self, actor_dim, n_actions):
+        super(ActorNetwork_allnei_wRadar, self).__init__()
+        self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.ReLU())
+        self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 256), nn.ReLU())
+        self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 128), nn.ReLU())
+        self.merge_feature = nn.Sequential(nn.Linear(64+256+128, 1024), nn.ReLU())
+        self.act_out = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(),
+                                     nn.Linear(512, n_actions), nn.Tanh())
+
+    def forward(self, cur_state):
+        own_obs = self.own_fc(cur_state[0])
+        own_nei = self.own_full_nei(cur_state[1])
+        own_radar = self.own_grid(cur_state[2])
+        merge_obs_grid = torch.cat((own_obs, own_nei, own_radar), dim=1)
+        merge_feature = self.merge_feature(merge_obs_grid)
+        out_action = self.act_out(merge_feature)
+        return out_action
+
 class ActorNetwork_OnePortion(nn.Module):
     def __init__(self, actor_dim, n_actions):  # actor_obs consists of three parts 0 = own, 1 = own grid, 2 = surrounding drones
         super(ActorNetwork_OnePortion, self).__init__()
@@ -382,6 +401,27 @@ class CriticNetwork(nn.Module):
         # entire_comb = torch.cat((env_encode, actor_actions), dim=1)
         # entire_comb = torch.cat((sum_own_e, actor_actions), dim=1)
         q = self.combine_all(env_encode)
+        return q
+
+
+class critic_single_TwoPortion_wRadar(nn.Module):
+    def __init__(self, critic_obs, n_agents, n_actions, single_history, hidden_state_size):
+        super(critic_single_TwoPortion_wRadar, self).__init__()
+        self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.ReLU())
+        self.S_all_nei = nn.Sequential(nn.Linear(critic_obs[1], 256), nn.ReLU())
+        self.S_radar = nn.Sequential(nn.Linear(critic_obs[2], 128), nn.ReLU())
+        self.merge_fc_grid = nn.Sequential(nn.Linear(64+256+128, 1024), nn.ReLU())
+        self.out_feature_q = nn.Sequential(nn.Linear(1024, 512), nn.ReLU(),
+                                           nn.Linear(512, 1))
+
+    def forward(self, single_state, single_action):
+        obsWaction = torch.cat((single_state[0], single_action), dim=1)
+        own_obsWaction = self.SA_fc(obsWaction)
+        own_full_neigh = self.S_all_nei(single_state[1])
+        own_radar = self.S_radar(single_state[2])
+        merge_obs_grid = torch.cat((own_obsWaction, own_full_neigh, own_radar), dim=1)
+        merge_feature = self.merge_fc_grid(merge_obs_grid)
+        q = self.out_feature_q(merge_feature)
         return q
 
 

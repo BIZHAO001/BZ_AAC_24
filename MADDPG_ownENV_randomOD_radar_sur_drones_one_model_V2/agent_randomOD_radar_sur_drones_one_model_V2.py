@@ -45,11 +45,15 @@ class Agent:
         # which correspond to the observation vector of that neighbor
         self.pre_surroundingNeighbor = {}
         self.surroundingNeighbor = {}
+        self.probe_line = {}
         self.observableSpace = []
         self.target_update_step = None
         self.removed_goal = None
         self.update_count = 0
         self.reach_target = False
+        self.bound_collision = False
+        self.building_collision = False
+        self.drone_collision = False
         self.collide_wall_count = 0
 
     def choose_actions(self, observation):

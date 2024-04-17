@@ -17,6 +17,28 @@ from shapely.strtree import STRtree
 from shapely.geometry import LineString, Point, Polygon
 import matplotlib.colors as colors
 
+def compute_t_cpa_d_cpa_potential_col(other_pos, host_pos, other_vel, host_vel, other_bound, host_bound, total_possible_conf):
+    rel_dist_withNeg = -1 * (other_pos - host_pos)  # relative distance, host-intru
+    rel_vel = other_vel - host_vel  # get relative velocity, host-intru
+    rel_vel_norm_withSQ = np.square(np.linalg.norm(rel_vel))  # square of norm
+    if rel_vel_norm_withSQ == 0:  # meaning this neigh with host drone relative vel = 0, same spd
+        tcpa = -10
+        # check possible collision manually
+        time_to_check = 1  # Check for collision after t seconds
+        new_nei_pos = other_pos + (other_vel * time_to_check)
+        new_host_pos = host_pos + (host_vel * time_to_check)
+        d_tcpa = np.linalg.norm(new_host_pos - new_nei_pos)
+        if d_tcpa < (other_bound + host_bound):
+            total_possible_conf = total_possible_conf + 1
+
+    else:
+        tcpa = np.dot(rel_dist_withNeg, rel_vel) / rel_vel_norm_withSQ
+        d_tcpa = np.linalg.norm(((rel_dist_withNeg * -1) + (rel_vel * tcpa)))
+
+    if (tcpa <= 1) and (tcpa >= 0) and (
+            d_tcpa < (other_bound + host_bound)):
+        total_possible_conf = total_possible_conf + 1
+    return (tcpa, d_tcpa, total_possible_conf)
 
 def find_index_of_min_first_element(lst):
     # Initialize the index and the minimum value
@@ -221,7 +243,7 @@ class NormalizeData:
         x, y = pos_c[0], pos_c[1]
         x_normalized = 2 * ((x - self.dis_min_x) / (self.dis_max_x - self.dis_min_x)) - 1
         y_normalized = 2 * ((y - self.dis_min_y) / (self.dis_max_y - self.dis_min_y)) - 1
-        return x_normalized, y_normalized
+        return np.array([x_normalized, y_normalized])
 
     def scale_pos(self, pos_c):  # NOTE: this method is essentially same as min-max normalize approach, but we need this appraoch to calculate x & y scale
         x_normalized = self.normalize_min + (pos_c[0] - self.dis_min_x) * self.x_scale

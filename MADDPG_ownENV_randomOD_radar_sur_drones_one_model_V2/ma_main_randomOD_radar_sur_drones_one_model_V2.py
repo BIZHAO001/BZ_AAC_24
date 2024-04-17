@@ -385,6 +385,8 @@ def main(args):
     # create world
     # actor_dim = [6+(total_agentNum-1)*2, 10, 6]  # dim host, maximum dim grid, dim other drones
     # critic_dim = [6+(total_agentNum-1)*2, 10, 6]
+    use_allNeigh_wRadar = True
+    # use_allNeigh_wRadar = False
     if full_observable_critic_flag:
         # actor_dim = [6, 18, 6]  # dim host, maximum dim grid, dim other drones
         actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
@@ -396,14 +398,19 @@ def main(args):
     else:
         # actor_dim = [6, 18, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
-        actor_dim = [10, 18, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [12, 18, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [26, 18, 6]
         # critic_dim = [6, 18, 6]
         # critic_dim = [8, 18, 6]
-        critic_dim = [10, 18, 6]
         # critic_dim = [12, 18, 6]
         # critic_dim = [26, 18, 6]
+        if use_allNeigh_wRadar:
+            actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]
+            critic_dim = [9, (total_agentNum - 1) * 8, 36, 6]
+        else:
+            actor_dim = [10, 18, 6]  # dim host, maximum dim grid, dim other drones
+            critic_dim = [10, 18, 6]
+
 
     actor_hidden_state = 64
     actor_hidden_state_list = [actor_hidden_state for _ in range(total_agentNum)]
@@ -439,7 +446,7 @@ def main(args):
     torch.manual_seed(args.seed)  # this is the seed
 
     if args.algo == "maddpg":
-        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag)
+        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_allNeigh_wRadar)
 
     episode = 0
     total_step = 0
@@ -537,7 +544,7 @@ def main(args):
 
                 step_obtain_action_time_start = time.time()
                 # action, step_noise_val = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, gru_history, noisy=False) # noisy is false because we are using stochastic policy
-                action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, noisy=noise_flag)  # noisy is false because we are using stochastic policy
+                action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_allNeigh_wRadar, noisy=noise_flag)  # noisy is false because we are using stochastic policy
 
                 generate_action_time = (time.time() - step_obtain_action_time_start)*1000
                 # print("current step obtain action time used is {} milliseconds".format(generate_action_time))
@@ -681,7 +688,7 @@ def main(args):
                     accum_reward = accum_reward + sum(reward_aft_action)
 
                 step_update_time_start = time.time()
-                c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, wandb, full_observable_critic_flag)  # last working learning framework
+                c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, use_allNeigh_wRadar, wandb, full_observable_critic_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
                 # print("current step update time used is {} milliseconds".format(update_time_used))
                 cur_state = next_state
@@ -862,7 +869,7 @@ def main(args):
 
                 # action, step_noise_val = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, gru_history, noisy=False) # noisy is false because we are using stochastic policy
                 action, step_noise_val, cur_actor_hiddens, \
-                next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, noisy=noise_flag)  # noisy is false because we are using stochastic policy
+                next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_allNeigh_wRadar, noisy=noise_flag)  # noisy is false because we are using stochastic policy
 
 
                 # action = model.choose_action(cur_state, episode, noisy=False)

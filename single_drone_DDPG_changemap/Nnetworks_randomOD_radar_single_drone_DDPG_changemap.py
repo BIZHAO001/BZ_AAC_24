@@ -783,6 +783,8 @@ class actor_TwoPortion_wATT(nn.Module):
         self.own_grid = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.ReLU())
         self.outlay = nn.Sequential(nn.Linear(64+64, 128), nn.ReLU(),
                                     nn.Linear(128, n_actions), nn.Tanh())
+        #4.2
+
 
     def forward(self, cur_state):
         # own_obs = self.own_fc(cur_state[0])
