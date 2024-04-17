@@ -8,7 +8,7 @@
 """
 import numpy as np
 import torch as T
-from Utilities_own_randomOD_radar_sur_drones_oneModel_use_tdCPA import padding_list
+from Utilities_own_randomOD_radar_sur_drones_one_model_V2 import padding_list
 
 
 class Agent:
@@ -41,20 +41,15 @@ class Agent:
         self.detectionRange = 30  # in meters, this is the in diameter
         # self.detectionRange = 100  # in meters, this is the in diameter, 100m, no convergence
         self.protectiveBound = 2.5  # diameter is 2.5*2, this is radius
-        # self.protectiveBound = 1.5  # diameter is 2.5*2, this is radius
         # a dictionary, key is the agent idx, value is the array of 1x6,
         # which correspond to the observation vector of that neighbor
         self.pre_surroundingNeighbor = {}
         self.surroundingNeighbor = {}
-        self.probe_line = {}
         self.observableSpace = []
         self.target_update_step = None
         self.removed_goal = None
         self.update_count = 0
         self.reach_target = False
-        self.bound_collision = False
-        self.building_collision = False
-        self.drone_collision = False
         self.collide_wall_count = 0
 
     def choose_actions(self, observation):
