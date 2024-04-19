@@ -29,7 +29,7 @@ def hard_update(target, source):
 
 
 class MADDPG:
-    def __init__(self, actor_dim, critic_dim, dim_act, actor_hidden_state_size, gru_history_length, n_agents, args, cr_lr, ac_lr, gamma, tau, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only):
+    def __init__(self, actor_dim, critic_dim, dim_act, actor_hidden_state_size, gru_history_length, n_agents, args, cr_lr, ac_lr, gamma, tau, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only, use_LSTM_flag):
         self.args = args
         self.mode = args.mode
         self.actors = []
@@ -47,8 +47,15 @@ class MADDPG:
                 self.critics = [critic_single_obs_wGRU_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]
                 # self.critics = [critic_single_obs_wGRU_TwoPortion_att(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]
             else:
-                self.actors = [GRUCELL_actor_TwoPortion(actor_dim, dim_act, actor_hidden_state_size) for _ in range(n_agents)]  # use deterministic policy
-                self.critics = [critic_single_obs_wGRU_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]
+                self.actors = [GRU_batch_actor_TwoPortion(actor_dim, dim_act, actor_hidden_state_size) for _ in range(n_agents)]  # use deterministic policy
+                # self.critics = [critic_single_obs_wGRU_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]
+                self.critics = [critic_single_obs_GRU_batch_twoPortion(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]
+
+        elif use_LSTM_flag:
+            self.actors = [LSTM_batch_actor_TwoPortion(actor_dim, dim_act, actor_hidden_state_size) for _ in range(n_agents)]  # use deterministic policy
+            self.critics = [critic_single_obs_LSTM_batch_twoPortion(critic_dim, n_agents, dim_act, gru_history_length,
+                                                                    actor_hidden_state_size) for _ in range(n_agents)]
+
         elif attention_only:
             self.actors = [actor_TwoPortion_wATT(actor_dim, dim_act) for _ in
                            range(n_agents)]  # use deterministic policy
@@ -227,13 +234,18 @@ class MADDPG:
 
         return c_loss, a_loss
 
-    def update_myown_ddpg(self, i_episode, total_step_count, UPDATE_EVERY, single_eps_critic_cal_record, action, wandb=None, full_observable_critic_flag=False, use_GRU_flag=False):
+    def update_myown_ddpg(self, i_episode, total_step_count, UPDATE_EVERY, single_eps_critic_cal_record, action, use_LSTM_flag, wandb=None, full_observable_critic_flag=False, use_GRU_flag=False):
         self.train_num = i_episode
         if len(self.memory) <= self.batch_size:
             return None, None, single_eps_critic_cal_record
 
         BoolTensor = torch.cuda.BoolTensor if self.use_cuda else torch.BoolTensor
         FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
+        #Reset the recurrent layer's hidden state
+        lstm_actor_hidden = None
+        lstm_target_actor_hidden = None
+        lstm_critic_hidden = None
+        lstm_target_critic_hidden = None
 
         c_loss = []
         a_loss = []
@@ -292,6 +304,19 @@ class MADDPG:
                     [non_final_next_states_actorin[0][:, i, :], non_final_next_states_actorin[1][:, i, :]],
                     agents_next_hidden_state[:, i, :])[0] for i in range(self.n_agents)]
                 current_Q = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]], action_batch[:, agent, :], agents_cur_hidden_state[:, agent, :])[0]
+            elif use_LSTM_flag:
+                lstm_target_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_target_actor_hidden is None else lstm_target_actor_hidden
+                lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_critic_hidden is None else lstm_critic_hidden
+
+                lstm_target_actor_hidden = (lstm_target_actor_hidden[0].detach(), lstm_target_actor_hidden[1].detach())
+                lstm_critic_hidden = (lstm_critic_hidden[0].detach(), lstm_critic_hidden[1].detach())
+
+                non_final_next_actions = [self.actors_target[i](
+                    [non_final_next_states_actorin[0][:, i, :].unsqueeze(1), non_final_next_states_actorin[1][:, i, :].unsqueeze(1)],
+                    lstm_target_actor_hidden) for i in range(self.n_agents)]
+                lstm_target_actor_hidden = non_final_next_actions[agent][1]
+                current_Q, lstm_critic_hidden = self.critics[agent]([stacked_elem_0[:, agent, :].unsqueeze(1), stacked_elem_1[:, agent, :].unsqueeze(1)],
+                                                action_batch[:, agent, :].unsqueeze(1), lstm_critic_hidden)
             else:
                 non_final_next_actions = [self.actors_target[i]([non_final_next_states_actorin[0][:,i,:], non_final_next_states_actorin[1][:,i,:]]) for i in range(self.n_agents)]
                 current_Q = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
@@ -300,15 +325,25 @@ class MADDPG:
             if use_GRU_flag:
                 next_target_critic_value = \
                 self.critics_target[agent]([next_stacked_elem_0[:, agent, :], next_stacked_elem_1[:, agent, :]],
-                                           non_final_next_actions[agent], agents_next_hidden_state[:, agent, :])[
-                    0].squeeze()
-            else:
-                next_target_critic_value = self.critics_target[agent]([next_stacked_elem_0[:,agent,:], next_stacked_elem_1[:,agent,:]], non_final_next_actions[agent]).squeeze()
+                                           non_final_next_actions[agent], agents_next_hidden_state[:, agent, :])[0].squeeze()
+            elif use_LSTM_flag:
+                lstm_target_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_target_critic_hidden is None else lstm_target_critic_hidden
+                lstm_target_critic_hidden = (lstm_target_critic_hidden[0].detach(), lstm_target_critic_hidden[1].detach())
 
-            tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1-dones_stacked[:, agent])
+                next_target_critic_value, lstm_target_critic_hidden = \
+                    self.critics_target[agent]([next_stacked_elem_0[:, agent, :].unsqueeze(1),
+                                                next_stacked_elem_1[:, agent, :].unsqueeze(1)],
+                                               non_final_next_actions[agent][0], lstm_target_critic_hidden)
+            else:
+                next_target_critic_value = self.critics_target[agent]([next_stacked_elem_0[:,agent,:],
+                                                                       next_stacked_elem_1[:,agent,:]], non_final_next_actions[agent]).squeeze()
+
+            tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1 - dones_stacked[:, agent].unsqueeze(1).unsqueeze(1))
             reward_cal = reward_batch[:, agent].clone()
-            target_Q = (reward_batch[:, agent]) + (self.GAMMA * next_target_critic_value * (1-dones_stacked[:, agent]))
-            target_Q = target_Q.unsqueeze(1)
+            target_Q = (reward_batch[:, agent].unsqueeze(1).unsqueeze(1)) + \
+                       self.GAMMA * next_target_critic_value * (1 - dones_stacked[:, agent].unsqueeze(1).unsqueeze(1))
+            if not use_LSTM_flag:
+                target_Q = target_Q.unsqueeze(1)
             tar_Q_after_rew = target_Q.clone()
 
             loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
@@ -322,7 +357,9 @@ class MADDPG:
                                                  (tar_Q_after_rew.detach().cpu().numpy().min(), tar_Q_after_rew.detach().cpu().numpy().max()),
                                                  (cal_loss_Q.detach().cpu().numpy().min(), cal_loss_Q.detach().cpu().numpy().max())])
             self.critic_optimizer[agent].zero_grad()
-            # loss_Q.backward(retain_graph=True)
+            # if use_LSTM_flag:
+            #     loss_Q.backward(retain_graph=True)
+            # else:
             loss_Q.backward()
             # self.has_gradients(self.critics[agent], agent, wandb)
             # for name, param in self.critics[agent].named_parameters():
@@ -335,6 +372,18 @@ class MADDPG:
                 action_i = self.actors[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],agents_cur_hidden_state[:, agent, :])[0]
                 actor_loss = - self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
                                                      action_i, agents_cur_hidden_state[:, agent, :])[0].mean()
+            elif use_LSTM_flag:
+                lstm_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_actor_hidden is None else lstm_actor_hidden
+                lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_critic_hidden is None else lstm_critic_hidden
+
+                lstm_actor_hidden = (lstm_actor_hidden[0].detach(), lstm_actor_hidden[1].detach())
+                lstm_critic_hidden = (lstm_critic_hidden[0].detach(), lstm_critic_hidden[1].detach())
+
+                action_i, lstm_actor_hidden = self.actors[agent]([stacked_elem_0[:, agent, :].unsqueeze(1), stacked_elem_1[:, agent, :].unsqueeze(1)],
+                                              lstm_actor_hidden)
+                q, lstm_critic_hidden = self.critics[agent]([stacked_elem_0[:, agent, :].unsqueeze(1), stacked_elem_1[:, agent, :].unsqueeze(1)],
+                                                     action_i, lstm_critic_hidden)
+                actor_loss = -torch.mean(q)
             else:
                 action_i = self.actors[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]])
                 actor_loss = - self.critics[agent]([stacked_elem_0[:,agent,:], stacked_elem_1[:,agent,:]], action_i).mean()
@@ -558,11 +607,13 @@ class MADDPG:
                 wandb.log({name: float(param.grad.norm())})
                 # wandb.log({'agent' + str(idx): wandb.Histogram(param.grad.cpu().detach().numpy())})
 
-    def choose_action(self, state, cur_total_step, cur_episode, step, total_training_steps, noise_start_level, actor_hiddens, noisy=True, use_GRU_flag=False):
+    def choose_action(self, state, cur_total_step, cur_episode, step, total_training_steps, noise_start_level, actor_hiddens, lstm_hist, use_LSTM_flag, noisy=True, use_GRU_flag=False):
         # ------------- MADDPG_test_181123_10_10_54 version noise -------------------
         obs = torch.from_numpy(np.stack(state[0])).float().to(device)
         obs_grid = torch.from_numpy(np.stack(state[1])).float().to(device)
         noise_value = np.zeros(2)
+        if lstm_hist is None:
+            lstm_hist = self.init_hidden(self.actors[0].rnn_hidden_dim, device=device)
 
         # if len(gru_history) < self.args.gru_history_length:
         #     # Append zero arrays to fill the gru_history
@@ -574,6 +625,8 @@ class MADDPG:
 
         actions = torch.zeros(self.n_agents, self.n_actions)
         if use_GRU_flag:
+            act_hn = torch.zeros(self.n_agents, self.actors[0].rnn_hidden_dim)
+        elif use_LSTM_flag:
             act_hn = torch.zeros(self.n_agents, self.actors[0].rnn_hidden_dim)
         else:
             act_hn = torch.zeros(self.n_agents, self.n_actions)
@@ -599,6 +652,8 @@ class MADDPG:
             self.actors[i].eval()
             if use_GRU_flag:
                 act, hn = self.actors[i]([sb.unsqueeze(0), sb_grid.unsqueeze(0)], gru_history_input[:, i, :])
+            elif use_LSTM_flag:
+                act, lstm_hist = self.actors[i]([sb.unsqueeze(0).unsqueeze(0), sb_grid.unsqueeze(0).unsqueeze(0)], lstm_hist)
             else:
                 act = self.actors[i]([sb.unsqueeze(0), sb_grid.unsqueeze(0)])
             if noisy:
@@ -610,6 +665,8 @@ class MADDPG:
             actions[i, :] = act
             if use_GRU_flag:
                 act_hn[i, :] = hn
+            elif use_LSTM_flag:  # don't change act_hn in this loop
+                pass
             else:
                 act_hn[i, :] = torch.zeros(1, self.n_actions)
             self.actors[i].train()
@@ -657,7 +714,10 @@ class MADDPG:
         #     if self.var[i] > 0.05:  # noise decrease at every step instead of every episode.
         #         self.var[i] = self.var[i] * 0.999998
         # self.steps_done += 1
-        return actions.data.cpu().numpy(), noise_value, gru_history_input.squeeze(0).data.cpu(), act_hn.data.cpu()  # NOTE: tensor.data.cpu() is to make the tensor's "is_leaf" = True, this also prevent the error message on line "retain_graph=True"
+        if use_LSTM_flag:
+            return actions.data.cpu().numpy(), noise_value, lstm_hist, gru_history_input.squeeze(0).data.cpu(), act_hn.data.cpu()
+        else:
+            return actions.data.cpu().numpy(), noise_value, gru_history_input.squeeze(0).data.cpu(), act_hn.data.cpu()  # NOTE: tensor.data.cpu() is to make the tensor's "is_leaf" = True, this also prevent the error message on line "retain_graph=True"
         # return actions.data.cpu().numpy(), noise_value, gru_history_input.squeeze(0).data.cpu()  # NOTE: tensor.data.cpu() is to make the tensor's "is_leaf" = True, this also prevent the error message on line "retain_graph=True"
         # return actions.data.cpu().numpy(), noise_value
 
@@ -681,3 +741,9 @@ class MADDPG:
         else:
             current_scale = end_scale
         return current_scale
+
+    def init_hidden(self, hidden_size, batch_size=1, device='cpu'):
+        # for lstm initialization is follow with (num_layers, batch_size, hidden_size)
+        h0 = torch.zeros(1, batch_size, hidden_size).to(device)
+        c0 = torch.zeros(1, batch_size, hidden_size).to(device)
+        return (h0, c0)

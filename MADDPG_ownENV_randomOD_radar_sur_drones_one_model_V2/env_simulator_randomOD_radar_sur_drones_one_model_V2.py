@@ -58,7 +58,6 @@ class env_simulator:
         self.time_step = 0.5  # in second as well
         self.all_agents = None
         self.cur_allAgentCoor_KD = None
-        self.OU_noise = None
         self.normalizer = None
         self.dummy_agent = None  # template for create a new agent
         self.max_agent_num = None
@@ -83,8 +82,6 @@ class env_simulator:
         self.target_pool = None
 
     def create_world(self, total_agentNum, n_actions, gamma, tau, target_update, largest_Nsigma, smallest_Nsigma, ini_Nsigma, max_xy, max_spd, acc_range):
-        # config OU_noise
-        self.OU_noise = OUNoise(n_actions, largest_Nsigma, smallest_Nsigma, ini_Nsigma)
         self.normalizer = NormalizeData([self.bound[0], self.bound[1]], [self.bound[2], self.bound[3]], max_spd, acc_range)
         self.all_agents = {}
         self.allbuildingSTR = STRtree(self.world_map_2D_polyList[0][0])
@@ -200,9 +197,6 @@ class env_simulator:
     def reset_world(self, total_agentNum, show):  # set initialize position and observation for all agents
         self.global_time = 0.0
         self.time_step = 0.5
-        # reset OU_noise as well
-        self.OU_noise.reset()
-
         # # ----------------- using fixed OD -----------------
         # # read the Excel file into a pandas dataframe
         # # df = pd.read_excel(r"D:\Multi_agent_AAC\MA_ver1\fixedDrone_3drones.xlsx")
@@ -271,6 +265,7 @@ class env_simulator:
             random_end_pos = random.choice(self.target_pool[random_target_index])
             dist_between_se = np.linalg.norm(np.array(random_end_pos) - np.array(random_start_pos))
 
+
             # while dist_between_se >= 100:  # the distance between start & end point is more than a threshold, we reset SE pairs.
             #     random_end_pos = random.choice(self.target_pool[random_target_index])
             #     dist_between_se = np.linalg.norm(np.array(random_end_pos) - np.array(random_start_pos))
@@ -289,6 +284,13 @@ class env_simulator:
                     any_collision = 1
                     print("Initial start point {} collision with buildings".format(np.array(random_start_pos)))
                     break
+
+            # random_start_pos_list = [(600, 380), (620, 380), (650, 280), (650, 290), (490, 270), (460, 330), (580, 370),
+            #                          (500, 340)]
+            # random_end_pos_list = [(490, 330), (470, 360), (550, 350), (560, 340), (500, 350), (620, 360), (460, 270),
+            #                        (660, 280)]
+            # random_start_pos = random_start_pos_list[agentIdx]
+            # random_end_pos = random_end_pos_list[agentIdx]
 
             self.all_agents[agentIdx].pos = np.array(random_start_pos)
             self.all_agents[agentIdx].pre_pos = np.array(random_start_pos)
@@ -404,8 +406,8 @@ class env_simulator:
 
         # overall_state, norm_overall_state = self.cur_state_norm_state_fully_observable(agentRefer_dict)
         # print('time used is {}'.format(time.time() - start_time))
-        # overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
-        overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3_tcpa(agentRefer_dict)
+        overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
+        # overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3_tcpa(agentRefer_dict)
 
         if show:
             os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -1144,7 +1146,7 @@ class env_simulator:
                             # Check if the line intersects with the polygon's boundary
                             if line.intersects(polygons_list_wBound[polygon_idx]):
                                 intersection_point = line.intersection(polygons_list_wBound[polygon_idx].boundary)
-                                if intersection_point.type == 'MultiPoint':
+                                if intersection_point.geom_type == 'MultiPoint':
                                     nearest_point = min(intersection_point.geoms,
                                                         key=lambda point: drone_ctr.distance(point))
                                 else:
@@ -1189,7 +1191,7 @@ class env_simulator:
             rest_compu_time = time.time()
 
             host_current_point = Point(agent.pos[0], agent.pos[1])
-            cross_err_distance, x_error, y_error = self.cross_track_error(host_current_point,
+            cross_err_distance, x_error, y_error, nearest_pt = self.cross_track_error(host_current_point,
                                                                           agent.ref_line)  # deviation from the reference line, cross track error
             norm_cross_track_deviation_x = x_error * self.normalizer.x_scale
             norm_cross_track_deviation_y = y_error * self.normalizer.y_scale
@@ -1272,8 +1274,8 @@ class env_simulator:
             # norm_pos = self.normalizer.scale_pos([agent.pos[0], agent.pos[1]])
             norm_pos = self.normalizer.nmlz_pos([agent.pos[0], agent.pos[1]])
 
-            norm_vel = self.normalizer.norm_scale([agent.vel[0], agent.vel[1]])  # normalization using scale
-            # norm_vel = self.normalizer.nmlz_vel([agent.vel[0], agent.vel[1]])  # normalization using min_max
+            # norm_vel = self.normalizer.norm_scale([agent.vel[0], agent.vel[1]])  # normalization using scale
+            norm_vel = self.normalizer.nmlz_vel([agent.vel[0], agent.vel[1]])  # normalization using min_max
 
             norm_acc = self.normalizer.norm_scale([agent.acc[0], agent.acc[1]])
 
@@ -1299,8 +1301,11 @@ class env_simulator:
             #                       agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1], nearest_neigh_pos[0],
             #                       nearest_neigh_pos[1]])
 
-            agent_own = np.array([agent.pos[0], agent.pos[1], agent.vel[0], agent.vel[1], x_error, y_error,
-                                  agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1], delta_nei[0], delta_nei[1]])
+            # agent_own = np.array([agent.pos[0], agent.pos[1], agent.vel[0], agent.vel[1], x_error, y_error,
+            #                       agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1], delta_nei[0], delta_nei[1]])
+
+            agent_own = np.array([agent.pos[0], agent.pos[1], agent.vel[0], agent.vel[1],
+                                  agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1], agent.heading, delta_nei[0], delta_nei[1]])
 
             # agent_own = np.array([agent.pos[0], agent.pos[1], agent.vel[0], agent.vel[1], x_error, y_error,
             #                       agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1], delta_nei[0], delta_nei[1],
@@ -1319,7 +1324,10 @@ class env_simulator:
             # norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_deltaG], axis=0)
             # norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_cross, norm_deltaG], axis=0)
             # norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_cross, norm_deltaG, norm_nearest_neigh_pos], axis=0)
-            norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_cross, norm_deltaG, norm_delta_nei], axis=0)
+            # norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_cross, norm_deltaG, norm_delta_nei], axis=0)
+            norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_deltaG], axis=0)
+            heading_to_nei_delta = np.array([agent.heading, norm_delta_nei[0], norm_delta_nei[1]])
+            norm_agent_own = np.append(norm_agent_own, heading_to_nei_delta)
             # norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_cross, norm_deltaG, norm_delta_nei, norm_nearest_neigh_vel], axis=0)
             # norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_ref_line_obs, norm_deltaG], axis=0)
             # norm_agent_own = np.concatenate([norm_pos, norm_vel, norm_acc, norm_deltaG], axis=0)
@@ -2820,7 +2828,7 @@ class env_simulator:
         # return reward, done, check_goal, step_reward_record, agent_filled
         return reward, done, check_goal, step_reward_record
 
-    def ss_reward(self, current_ts, step_reward_record, eps_status_holder, step_collision_record, xy, full_observable_critic_flag):
+    def ss_reward(self, current_ts, step_reward_record, eps_status_holder, step_collision_record, xy, full_observable_critic_flag, episode):
         bound_building_check = [False] * 3
         reward, done = [], []
         agent_to_remove = []
@@ -3192,8 +3200,21 @@ class env_simulator:
                 #           small_step_penalty + near_goal_reward - near_building_penalty + seg_reward-survival_penalty - near_drone_penalty
                 # else:
                 #     rew = rew + move_after_reach
+
+                # original reward ---
                 rew = rew + dist_to_ref_line + dist_to_goal - \
                       small_step_penalty + near_goal_reward - near_building_penalty + seg_reward - survival_penalty - near_drone_penalty
+                # end of original reward ---
+
+                # reward change with step ---
+                # if episode <= 5000:
+                #     rew = rew - small_step_penalty - near_building_penalty - near_drone_penalty
+                # elif episode > 5000 and episode <= 10000:
+                #     rew = rew - small_step_penalty - near_building_penalty - near_drone_penalty + dist_to_goal
+                # else:
+                #     rew = rew - small_step_penalty - near_building_penalty - near_drone_penalty + dist_to_goal + dist_to_ref_line
+                # end of reward change with step ---
+
                 # we remove the above termination condition
                 done.append(False)
                 step_reward = np.array(rew)
@@ -3290,7 +3311,20 @@ class env_simulator:
             # check velocity limit
             curVelx = self.all_agents[drone_idx].vel[0] + ax * self.time_step
             curVely = self.all_agents[drone_idx].vel[1] + ay * self.time_step
+
+            # transition V2 ---------
+            # cur_vel_vec = np.array([curVelx, curVely])
+            # magnitude = np.linalg.norm(cur_vel_vec)
+            # if magnitude == 0:
+            #     self.all_agents[drone_idx].vel = cur_vel_vec
+            # else:
+            #     unit_vel_vec = cur_vel_vec / magnitude
+            #     cur_vel_vec = unit_vel_vec * self.all_agents[drone_idx].maxSpeed
+            #     self.all_agents[drone_idx].vel = cur_vel_vec
+            # end of transition V2 ---------
+
             next_heading = math.atan2(curVely, curVelx)
+            # original transition ---------
             if np.linalg.norm([curVelx, curVely]) >= self.all_agents[drone_idx].maxSpeed:
 
                 # update host velocity when chosen speed has exceeded the max speed
@@ -3300,6 +3334,7 @@ class env_simulator:
             else:
                 # update host velocity when max speed is not exceeded
                 self.all_agents[drone_idx].vel = np.array([curVelx, curVely])
+            # end of original transition ---------
 
             #print("At time step {} the drone_{}'s output speed is {}".format(current_ts, drone_idx, np.linalg.norm(self.all_agents[drone_idx].vel)))
 
@@ -3311,8 +3346,9 @@ class env_simulator:
             self.all_agents[drone_idx].acc = np.array([ax, ay])
 
             counterCheck_heading = math.atan2(delta_y, delta_x)
-            if abs(next_heading - counterCheck_heading) > 1e-3 :
+            if abs(next_heading - counterCheck_heading) > 1e-3:
                 print("debug, heading different")
+            self.all_agents[drone_idx].heading = counterCheck_heading
             # ------------- end of acceleration in x and acceleration in y state transition control ---------------#
 
             self.all_agents[drone_idx].pos = np.array([self.all_agents[drone_idx].pos[0] + delta_x,
@@ -3332,8 +3368,8 @@ class env_simulator:
 
         # next_state, next_state_norm = self.cur_state_norm_state_fully_observable(agentRefer_dict)
         # start_acceleration_time = time.time()
-        # next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
-        next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3_tcpa(agentRefer_dict)
+        next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
+        # next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3_tcpa(agentRefer_dict)
         # print("obtain_current_state, time used {} milliseconds".format(
         #     (time.time() - start_acceleration_time) * 1000))
 

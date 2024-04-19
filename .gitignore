@@ -62,3 +62,4 @@ basedline_MAAC_ownENV/__pycache__/attention_sac_MAAC.cpython-39.pyc
 *.png
 /single_drone_DDPG_changemap/wandb/
 *.xlsx
+/MADDPG_ownENV_randomOD_radar_sur_drones_one_model_V2/wandb/

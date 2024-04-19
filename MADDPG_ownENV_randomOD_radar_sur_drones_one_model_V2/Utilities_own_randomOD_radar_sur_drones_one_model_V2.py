@@ -200,24 +200,22 @@ def preprocess_batch_for_critic_net_v2(input_state, batch_size):
     return cur_state_pre_processed
 
 
-class OUNoise:
+class OrnsteinUhlenbeckProcess:
 
-    def __init__(self, action_dimension, largest_Nsigma, smallest_Nsigma, ini_sigma, mu=0, theta=0.15):  # sigma is the initial magnitude of the OU_noise
-        self.action_dimension = action_dimension
+    def __init__(self, size, mu=0, theta=0.2, sigma=0.2):
+        self.size = size
         self.mu = mu
         self.theta = theta
-        self.sigma = ini_sigma
-        self.largest_sigma = largest_Nsigma
-        self.smallest_sigma = smallest_Nsigma
-        self.state = np.ones(self.action_dimension) * self.mu
-        self.reset()
+        self.sigma = sigma
+        self.state = np.ones(self.size) * self.mu
+        self.reset_states()
 
-    def reset(self):
-        self.state = np.ones(self.action_dimension) * self.mu
+    def reset_states(self):
+        self.state = np.ones(self.size) * self.mu
 
-    def noise(self):
+    def sample(self, changing_sigma):
         x = self.state
-        dx = self.theta * (self.mu - x) + self.sigma * np.random.randn(len(x))
+        dx = self.theta * (self.mu - x) + changing_sigma * np.random.randn(len(x))
         self.state = x + dx
         return self.state
 

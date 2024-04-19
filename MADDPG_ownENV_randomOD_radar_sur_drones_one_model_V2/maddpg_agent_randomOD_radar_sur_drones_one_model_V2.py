@@ -1,5 +1,6 @@
 # from Nnetworks_MADDPGv3 import CriticNetwork_0724, ActorNetwork
 from Nnetworks_randomOD_radar_sur_drones_one_model_V2 import *
+from Utilities_own_randomOD_radar_sur_drones_one_model_V2 import OrnsteinUhlenbeckProcess
 import torch
 from copy import deepcopy
 from torch.optim import Adam
@@ -26,6 +27,7 @@ def hard_update(target, source):
     for target_param, source_param in zip(target.parameters(),
                                           source.parameters()):
         target_param.data.copy_(source_param.data)
+
 
 
 class MADDPG:
@@ -80,6 +82,7 @@ class MADDPG:
         self.tau = tau
 
         self.var = [1.0 for i in range(n_agents)]
+        self.OU_noise = OrnsteinUhlenbeckProcess(dim_act)
         # self.var = [0.5 for i in range(n_agents)]
 
         # original, critic learning rate is 10 times larger compared to actor
@@ -486,7 +489,8 @@ class MADDPG:
                 act = self.actors[i]([sb.unsqueeze(0), sb_grid.unsqueeze(0)])
 
             if noisy:
-                noise_value = np.random.randn(2) * self.var[i]
+                noise_value = np.random.randn(2) * self.var[i]  # gaussian noise
+                # noise_value = self.OU_noise.sample(self.var[i])  # OU noise
                 act += torch.from_numpy(noise_value).type(FloatTensor)
                 # print("Episode {}, agent {}, noise level is {}".format(episode, i, self.var[i]))
                 act = torch.clamp(act, -1.0, 1.0)  # when using stochastic policy, we are not require to clamp again.
