@@ -83,11 +83,15 @@ def main(args):
     # use_GRU_flag = True
     use_GRU_flag = False
 
+    use_LSTM_flag = True
+    # use_LSTM_flag = False
+
     # use_attention_flag = True
     use_attention_flag = False
 
-    attention_only = True
-    # attention_only = False
+
+    # attention_only = True
+    attention_only = False
 
     if use_wanDB:
         wandb.login(key="efb76db851374f93228250eda60639c70a93d1ec")
@@ -161,7 +165,7 @@ def main(args):
     torch.manual_seed(args.seed)  # this is the seed
 
     if args.algo == "maddpg":
-        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only)
+        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only, use_LSTM_flag)
     elif args.algo == 'TD3':
         model = TD3(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args,
                        criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag)
@@ -204,7 +208,7 @@ def main(args):
         args.max_episodes = 100
         # args.max_episodes = 20
         # args.max_episodes = 1
-        pre_fix = r'D:\MADDPG_2nd_jp\150424_17_24_23\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\170424_21_31_54\interval_record_eps'
         episode_to_check = str(10000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
@@ -249,8 +253,8 @@ def main(args):
         step = 0
         agent_added = 0  # this is an initialization for each new episode
         accum_reward = 0
-
         trajectory_eachPlay = []
+        lstm_hist = None
 
         while True:  # start of a step
             if args.mode == "train":
@@ -266,7 +270,10 @@ def main(args):
 
                 step_obtain_action_time_start = time.time()
                 # action, step_noise_val = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, gru_history, noisy=False) # noisy is false because we are using stochastic policy
-                action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                if use_LSTM_flag:
+                    action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                else:
+                    action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
                 generate_action_time = (time.time() - step_obtain_action_time_start)*1000
                 # print("current step obtain action time used is {} milliseconds".format(generate_action_time))
@@ -418,7 +425,7 @@ def main(args):
                     c_loss, a_loss, single_eps_critic_cal_record = model.update_myown_ddpg(episode, total_step,
                                                                                            UPDATE_EVERY,
                                                                                            single_eps_critic_cal_record,
-                                                                                           action, wandb,
+                                                                                           action, use_LSTM_flag, wandb,
                                                                                            full_observable_critic_flag,
                                                                                            use_GRU_flag)  # last working learning framework
                 elif args.algo == 'TD3':

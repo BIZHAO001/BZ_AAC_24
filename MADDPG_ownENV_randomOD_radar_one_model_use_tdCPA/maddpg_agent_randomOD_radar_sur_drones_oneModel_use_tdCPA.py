@@ -1112,7 +1112,6 @@ class MADDPG:
         # ------------- MADDPG_test_181123_10_10_54 version noise -------------------
         obs = torch.from_numpy(np.stack(state[0])).float().to(device)
         obs_full_nei = torch.from_numpy(np.stack(state[1])).float().to(device)
-
         obs_grid = torch.from_numpy(np.stack(state[2])).float().to(device)
         noise_value = np.zeros(2)
 

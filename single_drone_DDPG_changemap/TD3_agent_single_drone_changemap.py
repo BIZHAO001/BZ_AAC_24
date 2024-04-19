@@ -102,7 +102,7 @@ class TD3(object):
             for x in self.critics_target:
                 x.cuda()
 
-    def choose_action(self, state, cur_total_step, cur_episode, step, total_training_steps, noise_start_level, actor_hiddens, noisy=True, use_GRU_flag=False):
+    def choose_action(self, state, cur_total_step, cur_episode, step, total_training_steps, noise_start_level, actor_hiddens, use_LSTM_flag, noisy=True, use_GRU_flag=False):
         # ------------- MADDPG_test_181123_10_10_54 version noise -------------------
         obs = torch.from_numpy(np.stack(state[0])).float().to(device)
         obs_grid = torch.from_numpy(np.stack(state[1])).float().to(device)
@@ -118,6 +118,8 @@ class TD3(object):
 
         actions = torch.zeros(self.n_agents, self.n_actions)
         if use_GRU_flag:
+            act_hn = torch.zeros(self.n_agents, self.actors[0].rnn_hidden_dim)
+        elif use_LSTM_flag:
             act_hn = torch.zeros(self.n_agents, self.actors[0].rnn_hidden_dim)
         else:
             act_hn = torch.zeros(self.n_agents, self.n_actions)
@@ -207,7 +209,6 @@ class TD3(object):
         # return actions.data.cpu().numpy(), noise_value
 
     def update_myown(self, i_episode, total_step_count, UPDATE_EVERY, single_eps_critic_cal_record, action, wandb=None, full_observable_critic_flag=False, use_GRU_flag=False):
-
         if (len(self.memory) <= self.batch_size):
             return None, None, single_eps_critic_cal_record
         c_loss = []
