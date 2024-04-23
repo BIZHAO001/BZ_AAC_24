@@ -1,9 +1,9 @@
 # from Nnetworks_MADDPGv3 import CriticNetwork_0724, ActorNetwork
-from Nnetworks_randomOD_radar_single_drone_DDPG_changemap import *
+from Nnetworks_randomOD_radar_single_drone_DDPG_changemap_GRU_LSTM_seqLength import *
 import torch
 from copy import deepcopy
 from torch.optim import Adam
-from memory_randomOD_radar_single_drone_DDPG_changemap import ReplayMemory, Experience
+from memory_randomOD_radar_single_drone_DDPG_changemap_GRU_LSTM_seqLength import ReplayMemory, Experience
 # from random_process_MADDPGv3_randomOD import OrnsteinUhlenbeckProcess
 from torch.autograd import Variable
 import os
@@ -11,7 +11,7 @@ import torch.nn as nn
 import time
 import numpy as np
 import torch as T
-from utils_randomOD_radar_single_drone_DDPG_changemap import device
+from utils_randomOD_radar_single_drone_DDPG_changemap_GRU_LSTM_seqLength import device
 import csv
 
 
@@ -86,7 +86,7 @@ class MADDPG:
         self.actors_target = deepcopy(self.actors)
         self.critics_target = deepcopy(self.critics)
 
-        self.memory = ReplayMemory(args.memory_length)
+        self.memory = ReplayMemory(args.memory_length, gru_history_length)
         self.batch_size = args.batch_size
         self.use_cuda = torch.cuda.is_available()
         # self.episodes_before_train = args.episode_before_train
@@ -236,9 +236,13 @@ class MADDPG:
 
     def update_myown_ddpg(self, i_episode, total_step_count, UPDATE_EVERY, single_eps_critic_cal_record, action, use_LSTM_flag, wandb=None, full_observable_critic_flag=False, use_GRU_flag=False):
         self.train_num = i_episode
-        if len(self.memory) <= self.batch_size:
-            return None, None, single_eps_critic_cal_record
-
+        if self.memory.history_seq_length > 1:
+            if len(self.memory) <= self.batch_size*self.memory.history_seq_length:
+                return None, None, single_eps_critic_cal_record
+        else:
+            if len(self.memory) <= self.batch_size:
+                return None, None, single_eps_critic_cal_record
+        # print("------------------ Training starts ------------------------")
         BoolTensor = torch.cuda.BoolTensor if self.use_cuda else torch.BoolTensor
         FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         #Reset the recurrent layer's hidden state
@@ -250,17 +254,41 @@ class MADDPG:
         c_loss = []
         a_loss = []
 
-        transitions = self.memory.sample(self.batch_size)
+
+        if self.memory.history_seq_length > 1: # meaning seq_length is more than 1.
+            sequence_indexes = torch.arange(0, self.memory.history_seq_length, 1)
+            size = len(self.memory)
+            size -= sequence_indexes[-1].item()
+            indexes = torch.randperm(size, dtype=torch.long)[:self.batch_size]
+            indexes = (sequence_indexes.repeat(indexes.shape[0], 1) + indexes.view(-1, 1)).view(-1)
+            transitions = self.memory.sample_by_index(indexes)
+        else:
+            transitions = self.memory.sample(self.batch_size)
+        # transitions = self.memory.sample(self.batch_size)
         batch = Experience(*zip(*transitions))
 
         action_batch = torch.stack(batch.actions).type(FloatTensor)
         reward_batch = torch.stack(batch.rewards).type(FloatTensor)
+        # for done
+        dones_stacked = torch.stack([three_agent_dones for three_agent_dones in batch.dones]).to(device)
         if use_GRU_flag:
             agents_next_hidden_state = torch.stack(batch.next_hidden).type(FloatTensor)
             agents_cur_hidden_state = torch.stack(batch.cur_hidden).type(FloatTensor)
+        if use_LSTM_flag:
+            stacked_hidden = torch.stack([elem[0] for elem in batch.rnn_hidden]).to(device)  # lstm_hidden, (N, num_layer, L, Hout)
+            stacked_cell = torch.stack([elem[1] for elem in batch.rnn_hidden]).to(device) # lstm_cell, (N, num_layer, L, Hout)
+            stacked_hidden = stacked_hidden.view(1, -1, self.memory.history_seq_length, stacked_hidden.shape[-1])  # (D * num_layers, N, L, Hout)
+            stacked_hidden = stacked_hidden.detach()
+            cell_states = stacked_cell.view(1, -1, self.memory.history_seq_length, stacked_cell.shape[-1])  # (D * num_layers, N, L, Hcell)
+            cell_states = cell_states.detach()
+
         # stack tensors only once
         stacked_elem_0 = torch.stack([elem[0] for elem in batch.states]).to(device)
         stacked_elem_1 = torch.stack([elem[1] for elem in batch.states]).to(device)
+        if use_LSTM_flag:
+            stacked_elem_0 = stacked_elem_0.view(-1, self.memory.history_seq_length, stacked_elem_0.shape[-1])
+            stacked_elem_1 = stacked_elem_1.view(-1, self.memory.history_seq_length, stacked_elem_1.shape[-1])
+
         if full_observable_critic_flag == True:
             stacked_elem_0_combine = stacked_elem_0.view(self.batch_size, -1)  # own_state only
             stacked_elem_1_combine = stacked_elem_1.view(self.batch_size, -1)  # own_state only
@@ -272,12 +300,13 @@ class MADDPG:
         # for next state
         next_stacked_elem_0 = torch.stack([elem[0] for elem in batch.next_states]).to(device)
         next_stacked_elem_1 = torch.stack([elem[1] for elem in batch.next_states]).to(device)
+        if use_LSTM_flag:
+            next_stacked_elem_0 = next_stacked_elem_0.view(-1, self.memory.history_seq_length, next_stacked_elem_0.shape[-1])
+            next_stacked_elem_1 = next_stacked_elem_1.view(-1, self.memory.history_seq_length, next_stacked_elem_1.shape[-1])
         if full_observable_critic_flag == True:
             next_stacked_elem_0_combine = next_stacked_elem_0.view(self.batch_size, -1)
             next_stacked_elem_1_combine = next_stacked_elem_1.view(self.batch_size, -1)
 
-        # for done
-        dones_stacked = torch.stack([three_agent_dones for three_agent_dones in batch.dones]).to(device)
 
         for agent in range(self.n_agents):
             # whole_ownState = stacked_elem_0_combine  # own_state only
@@ -286,8 +315,10 @@ class MADDPG:
             non_final_next_states_actorin = [next_stacked_elem_0, next_stacked_elem_1]  # 2 portion available
 
             # configured for target Q
-
-            whole_curren_action = action_batch.view(self.batch_size, -1)
+            if self.memory.history_seq_length != 0:
+                whole_curren_action = action_batch.view(len(self.memory.sampling_indexes), -1)
+            else:
+                whole_curren_action = action_batch.view(self.batch_size, -1)
 
             # non_final_next_actions = [self.actors_target[i](non_final_next_states_actorin[0][:,i,:], history_batch[:,:,i,:])[0] for i in range(self.n_agents)]
             # non_final_next_actions = [self.actors_target[i](non_final_next_states_actorin[0][:,i,:], agents_next_hidden_state[:,i,:])[0] for i in range(self.n_agents)]
@@ -299,55 +330,61 @@ class MADDPG:
             # get current Q-estimate, using agent's critic network
             # current_Q = self.critics[agent](whole_state, whole_action, whole_agent_combine_gru)
             # current_Q = self.critics[agent](whole_state, whole_action, history_batch[:, :, agent, :])
-            if use_GRU_flag:
-                non_final_next_actions = [self.actors_target[i](
-                    [non_final_next_states_actorin[0][:, i, :], non_final_next_states_actorin[1][:, i, :]],
-                    agents_next_hidden_state[:, i, :])[0] for i in range(self.n_agents)]
-                current_Q = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]], action_batch[:, agent, :], agents_cur_hidden_state[:, agent, :])[0]
-            elif use_LSTM_flag:
-                # lstm_target_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_target_actor_hidden is None else lstm_target_actor_hidden
-                # lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_critic_hidden is None else lstm_critic_hidden
-                lstm_target_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
-                lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
+            with torch.no_grad():
+                if use_GRU_flag:
+                    non_final_next_actions = [self.actors_target[i](
+                        [non_final_next_states_actorin[0][:, i, :], non_final_next_states_actorin[1][:, i, :]],
+                        agents_next_hidden_state[:, i, :])[0] for i in range(self.n_agents)]
+                    current_Q = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]], action_batch[:, agent, :], agents_cur_hidden_state[:, agent, :])[0]
+                elif use_LSTM_flag:
+                    # lstm_target_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
+                    # lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
+                    # lstm_target_actor_hidden = (lstm_target_actor_hidden[0].detach(), lstm_target_actor_hidden[1].detach())
+                    # lstm_critic_hidden = (lstm_critic_hidden[0].detach(), lstm_critic_hidden[1].detach())
+                    non_final_next_actions = [self.actors_target[i](
+                        [non_final_next_states_actorin[0], non_final_next_states_actorin[1]],
+                        (stacked_hidden, cell_states), 1, dones_stacked) for i in range(self.n_agents)]  # target network flag is 1.
 
-                lstm_target_actor_hidden = (lstm_target_actor_hidden[0].detach(), lstm_target_actor_hidden[1].detach())
-                lstm_critic_hidden = (lstm_critic_hidden[0].detach(), lstm_critic_hidden[1].detach())
+                else:
+                    non_final_next_actions = [self.actors_target[i]([non_final_next_states_actorin[0][:,i,:], non_final_next_states_actorin[1][:,i,:]]) for i in range(self.n_agents)]
 
-                non_final_next_actions = [self.actors_target[i](
-                    [non_final_next_states_actorin[0][:, i, :].unsqueeze(1), non_final_next_states_actorin[1][:, i, :].unsqueeze(1)],
-                    lstm_target_actor_hidden) for i in range(self.n_agents)]
-                lstm_target_actor_hidden = non_final_next_actions[agent][1]
-                current_Q, lstm_critic_hidden = self.critics[agent]([stacked_elem_0[:, agent, :].unsqueeze(1), stacked_elem_1[:, agent, :].unsqueeze(1)],
-                                                action_batch[:, agent, :].unsqueeze(1), lstm_critic_hidden)
+                if use_GRU_flag:
+                    next_target_critic_value = \
+                    self.critics_target[agent]([next_stacked_elem_0[:, agent, :], next_stacked_elem_1[:, agent, :]],
+                                               non_final_next_actions[agent], agents_next_hidden_state[:, agent, :])[0].squeeze()
+                elif use_LSTM_flag:
+                    # lstm_target_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_target_critic_hidden is None else lstm_target_critic_hidden
+                    # lstm_target_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
+                    # lstm_target_critic_hidden = (lstm_target_critic_hidden[0].detach(), lstm_target_critic_hidden[1].detach())
+
+                    next_target_critic_value, _ = \
+                        self.critics_target[agent]([next_stacked_elem_0, next_stacked_elem_1],
+                                                   non_final_next_actions[agent][0], (stacked_hidden, cell_states), 1, dones_stacked)
+                else:
+                    next_target_critic_value = self.critics_target[agent]([next_stacked_elem_0[:,agent,:],
+                                                                           next_stacked_elem_1[:,agent,:]], non_final_next_actions[agent]).squeeze()
+                if use_LSTM_flag:
+                    tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1 - dones_stacked[:, agent].unsqueeze(1))
+                    reward_cal = reward_batch[:, agent].clone()
+                    target_Q = (reward_batch[:, agent].unsqueeze(1)) + \
+                               self.GAMMA * next_target_critic_value * (
+                                           1 - dones_stacked[:, agent].unsqueeze(1))
+                else:
+                    tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1 - dones_stacked[:, agent].unsqueeze(1).unsqueeze(1))
+                    reward_cal = reward_batch[:, agent].clone()
+                    target_Q = (reward_batch[:, agent].unsqueeze(1).unsqueeze(1)) + \
+                               self.GAMMA * next_target_critic_value * (1 - dones_stacked[:, agent].unsqueeze(1).unsqueeze(1))
+                if not use_LSTM_flag:
+                    target_Q = target_Q.unsqueeze(1)
+                tar_Q_after_rew = target_Q.clone()
+            if use_LSTM_flag:
+                current_Q, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1], action_batch,
+                                                   (stacked_hidden, cell_states), 0, dones_stacked)
+
             else:
-                non_final_next_actions = [self.actors_target[i]([non_final_next_states_actorin[0][:,i,:], non_final_next_states_actorin[1][:,i,:]]) for i in range(self.n_agents)]
                 current_Q = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
                                                 action_batch[:, agent, :])
 
-            if use_GRU_flag:
-                next_target_critic_value = \
-                self.critics_target[agent]([next_stacked_elem_0[:, agent, :], next_stacked_elem_1[:, agent, :]],
-                                           non_final_next_actions[agent], agents_next_hidden_state[:, agent, :])[0].squeeze()
-            elif use_LSTM_flag:
-                # lstm_target_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_target_critic_hidden is None else lstm_target_critic_hidden
-                lstm_target_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
-                lstm_target_critic_hidden = (lstm_target_critic_hidden[0].detach(), lstm_target_critic_hidden[1].detach())
-
-                next_target_critic_value, lstm_target_critic_hidden = \
-                    self.critics_target[agent]([next_stacked_elem_0[:, agent, :].unsqueeze(1),
-                                                next_stacked_elem_1[:, agent, :].unsqueeze(1)],
-                                               non_final_next_actions[agent][0], lstm_target_critic_hidden)
-            else:
-                next_target_critic_value = self.critics_target[agent]([next_stacked_elem_0[:,agent,:],
-                                                                       next_stacked_elem_1[:,agent,:]], non_final_next_actions[agent]).squeeze()
-
-            tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1 - dones_stacked[:, agent].unsqueeze(1).unsqueeze(1))
-            reward_cal = reward_batch[:, agent].clone()
-            target_Q = (reward_batch[:, agent].unsqueeze(1).unsqueeze(1)) + \
-                       self.GAMMA * next_target_critic_value * (1 - dones_stacked[:, agent].unsqueeze(1).unsqueeze(1))
-            if not use_LSTM_flag:
-                target_Q = target_Q.unsqueeze(1)
-            tar_Q_after_rew = target_Q.clone()
 
             loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
             cal_loss_Q = loss_Q.clone()
@@ -378,16 +415,16 @@ class MADDPG:
             elif use_LSTM_flag:
                 # lstm_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_actor_hidden is None else lstm_actor_hidden
                 # lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_critic_hidden is None else lstm_critic_hidden
-                lstm_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
-                lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
+                # lstm_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
+                # lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
 
-                lstm_actor_hidden = (lstm_actor_hidden[0].detach(), lstm_actor_hidden[1].detach())
-                lstm_critic_hidden = (lstm_critic_hidden[0].detach(), lstm_critic_hidden[1].detach())
+                # lstm_actor_hidden = (lstm_actor_hidden[0].detach(), lstm_actor_hidden[1].detach())
+                # lstm_critic_hidden = (lstm_critic_hidden[0].detach(), lstm_critic_hidden[1].detach())
 
-                action_i, lstm_actor_hidden = self.actors[agent]([stacked_elem_0[:, agent, :].unsqueeze(1), stacked_elem_1[:, agent, :].unsqueeze(1)],
-                                              lstm_actor_hidden)
-                q, lstm_critic_hidden = self.critics[agent]([stacked_elem_0[:, agent, :].unsqueeze(1), stacked_elem_1[:, agent, :].unsqueeze(1)],
-                                                     action_i, lstm_critic_hidden)
+                action_i, _ = self.actors[agent]([stacked_elem_0, stacked_elem_1],
+                                              (stacked_hidden, cell_states), 0, dones_stacked)
+                q, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1],
+                                                     action_i, (stacked_hidden, cell_states), 0, dones_stacked)
                 actor_loss = -torch.mean(q)
             else:
                 action_i = self.actors[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]])
@@ -654,7 +691,7 @@ class MADDPG:
             # act = self.actors[i]([sb.unsqueeze(0), sb_surAgent.unsqueeze(0)]).squeeze()
             # act, hn = self.actors[i](sb.unsqueeze(0), gru_history_input[:,:,i,:])
             # act, hn = self.actors[i](sb.unsqueeze(0), gru_history_input[:, i, :])
-            self.actors[i].eval()
+            # self.actors[i].eval()
             if use_GRU_flag:
                 act, hn = self.actors[i]([sb.unsqueeze(0), sb_grid.unsqueeze(0)], gru_history_input[:, i, :])
             elif use_LSTM_flag:
@@ -674,7 +711,7 @@ class MADDPG:
                 pass
             else:
                 act_hn[i, :] = torch.zeros(1, self.n_actions)
-            self.actors[i].train()
+            # self.actors[i].train()
         self.steps_done += 1
         # ------------- end of MADDPG_test_181123_10_10_54 version noise -------------------
 

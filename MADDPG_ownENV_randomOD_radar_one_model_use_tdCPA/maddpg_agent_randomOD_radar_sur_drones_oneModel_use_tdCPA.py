@@ -271,8 +271,8 @@ class MADDPG:
         c_loss = []
         a_loss = []
 
-        for agent in range(self.n_agents):
-        # for agent in range(1):
+        # for agent in range(self.n_agents):
+        for agent in range(1):
             transitions = self.memory.sample(self.batch_size)
             batch = Experience(*zip(*transitions))
 
@@ -796,6 +796,7 @@ class MADDPG:
         if len(self.memory) <= self.batch_size:
             return None, None, single_eps_critic_cal_record, current_row
 
+        # step_update_time_start = time.time()
         BoolTensor = torch.cuda.BoolTensor if self.use_cuda else torch.BoolTensor
         FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         c_loss = []
@@ -804,6 +805,10 @@ class MADDPG:
         total_actor_loss = 0.0
         transitions = self.memory.sample(self.batch_size)
         batch = Experience(*zip(*transitions))
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 0th portion time used is {} milliseconds".format(current_step, update_time_used))
+
+        step_update_time_start = time.time()
         experience_replay_record.append([f'episode {i_episode} step {current_step}:'])
         # store experience_replay
         # experience_to_store = (batch.states, batch.actions, batch.rewards, batch.dones, batch.next_states)
@@ -844,7 +849,10 @@ class MADDPG:
                         for _ in range(2):
                             step_data['batch_idx'].append('-')
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 1st portion time used is {} milliseconds".format(current_step, update_time_used))
 
+        # step_update_time_start = time.time()  # 2nd portion
         action_batch = torch.stack(batch.actions).type(FloatTensor)
         reward_batch = torch.stack(batch.rewards).type(FloatTensor)
 
@@ -937,9 +945,14 @@ class MADDPG:
             else:
                 current_Q = self.critics([stacked_elem_0, stacked_elem_1], action_batch)
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 2st portion time used is {} milliseconds".format(current_step, update_time_used))
+
         # has_positive_values = (current_Q > 0).any()
         # if has_positive_values:
         #     print("true")
+
+        # step_update_time_start = time.time()  # 3nd portion
         with T.no_grad():
             # next_target_critic_value = self.critics_target[agent](next_stacked_elem_0_combine, non_final_next_actions.view(-1,self.n_agents * self.n_actions), whole_agent_combine_gru).squeeze()
             # next_target_critic_value = self.critics_target[agent](next_stacked_elem_0_combine, non_final_next_actions.view(-1,self.n_agents * self.n_actions), history_batch[:, :, agent, :]).squeeze()
@@ -986,6 +999,10 @@ class MADDPG:
                 step_data['targetQ'].append('_')
                 step_data['targetQ'].append('_')
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 3st portion time used is {} milliseconds".format(current_step, update_time_used))
+
+        # step_update_time_start = time.time()  # 4th portion
         loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
         step_data['lossQ'].append(loss_Q.detach().cpu().numpy())
         for _ in range((3*self.batch_size)-1):  # 3 is the number of elements inside state
@@ -1077,6 +1094,10 @@ class MADDPG:
         self.critic_optimizer.step()
         self.actor_optimizer.step()
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 4th portion time used is {} milliseconds".format(current_step, update_time_used))
+
+        # step_update_time_start = time.time()  # 5th portion
         # save to excel only after loss is recorded
         # Convert the step data into a DataFrame
         df_step = pd.DataFrame(step_data)
@@ -1086,10 +1107,12 @@ class MADDPG:
         # Update current_row to the next starting point
         current_row += len(df_step) + 1  # +1 for an empty row after each step
 
+
         if i_episode % UPDATE_EVERY == 0:  # perform a soft update at each step of an episode.
             soft_update(self.critics_target, self.critics, self.tau)
             soft_update(self.actors_target, self.actors, self.tau)
-
+        update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 5th portion time used is {} milliseconds".format(current_step, update_time_used))
         return c_loss, a_loss, single_eps_critic_cal_record, current_row
 
 

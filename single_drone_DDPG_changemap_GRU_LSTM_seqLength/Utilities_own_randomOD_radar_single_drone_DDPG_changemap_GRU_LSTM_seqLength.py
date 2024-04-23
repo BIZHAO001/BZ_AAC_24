@@ -191,7 +191,66 @@ def get_history_tensor(history, sequence_length, input_size):
     return history_tensor.unsqueeze(0)
 
 
+def save_gif(env, trajectory_eachPlay, pre_fix, episode_to_check, episode, random_map_idx):
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    matplotlib.use('TkAgg')
+    fig, ax = plt.subplots(1, 1)
 
+    plt.axis('equal')
+    plt.xlim(env.bound_collection[random_map_idx][0], env.bound_collection[random_map_idx][1])
+    plt.ylim(env.bound_collection[random_map_idx][2], env.bound_collection[random_map_idx][3])
+    plt.axvline(x=env.bound_collection[random_map_idx][0], c="green")
+    plt.axvline(x=env.bound_collection[random_map_idx][1], c="green")
+    plt.axhline(y=env.bound_collection[random_map_idx][2], c="green")
+    plt.axhline(y=env.bound_collection[random_map_idx][3], c="green")
+    plt.xlabel("X axis")
+    plt.ylabel("Y axis")
+
+    # draw occupied_poly
+    for one_poly in env.world_map_2D_polyList_collection[random_map_idx][0][0]:
+        one_poly_mat = shapelypoly_to_matpoly(one_poly, True, 'y', 'b')
+        ax.add_patch(one_poly_mat)
+    # draw non-occupied_poly
+    for zero_poly in env.world_map_2D_polyList_collection[random_map_idx][0][1]:
+        zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
+        # ax.add_patch(zero_poly_mat)
+
+    # show building obstacles
+    for poly in env.buildingPolygons:
+        matp_poly = shapelypoly_to_matpoly(poly, False, 'red')  # the 3rd parameter is the edge color
+        ax.add_patch(matp_poly)
+
+    for agentIdx, agent in env.all_agents.items():
+        plt.plot(agent.ini_pos[0], agent.ini_pos[1],
+                 marker=MarkerStyle(">",
+                                    fillstyle="right",
+                                    transform=Affine2D().rotate_deg(math.degrees(agent.heading))),
+                 color='y')
+        plt.text(agent.ini_pos[0], agent.ini_pos[1], agent.agent_name)
+        # plot self_circle of the drone
+        self_circle = Point(agent.ini_pos[0],
+                            agent.ini_pos[1]).buffer(agent.protectiveBound, cap_style='round')
+        grid_mat_Scir = shapelypoly_to_matpoly(self_circle, inFill=False, Edgecolor='k')
+        ax.add_patch(grid_mat_Scir)
+
+        # plot drone's detection range
+        detec_circle = Point(agent.ini_pos[0],
+                             agent.ini_pos[1]).buffer(agent.detectionRange / 2, cap_style='round')
+        detec_circle_mat = shapelypoly_to_matpoly(detec_circle, inFill=False, Edgecolor='g')
+        ax.add_patch(detec_circle_mat)
+
+        plt.plot(agent.goal[-1][0], agent.goal[-1][1], marker='*', color='y', markersize=10)
+        plt.text(agent.goal[-1][0], agent.goal[-1][1], agent.agent_name)
+
+    # Create animation
+    ani = animation.FuncAnimation(fig, animate, fargs=(ax, env, trajectory_eachPlay, random_map_idx), frames=len(trajectory_eachPlay),
+                                  interval=300, blit=False)
+    # Save as GIF
+    gif_path = pre_fix + '\episode_' + episode_to_check + 'simulation_num_' + str(episode) + '.gif'
+    ani.save(gif_path, writer='pillow')
+
+    # Close figure
+    plt.close(fig)
 
 
 def view_static_traj(env, trajectory_eachPlay, random_map_idx):

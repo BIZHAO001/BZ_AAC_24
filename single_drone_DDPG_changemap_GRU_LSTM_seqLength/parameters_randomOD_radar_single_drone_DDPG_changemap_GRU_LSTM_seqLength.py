@@ -8,8 +8,8 @@
 """
 import numpy as np
 import pickle
-from grid_env_generation_newframe_randomOD_radar_single_drone_DDPG_changemap import env_generation
-from env_simulator_randomOD_radar_single_drone_DDPG_changemap import env_simulator
+from grid_env_generation_newframe_randomOD_radar_single_drone_DDPG_changemap_GRU_LSTM_seqLength import env_generation
+from env_simulator_randomOD_radar_single_drone_DDPG_changemap_GRU_LSTM_seqLength import env_simulator
 
 
 def initialize_parameters():
