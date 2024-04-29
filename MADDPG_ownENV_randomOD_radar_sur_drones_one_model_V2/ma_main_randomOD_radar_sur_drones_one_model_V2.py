@@ -692,7 +692,7 @@ def main(args):
                 step_update_time_start = time.time()
                 c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, use_allNeigh_wRadar, wandb, full_observable_critic_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
-                # print("current step update time used is {} milliseconds".format(update_time_used))
+                print("current step {} update time used is {} milliseconds".format(step, update_time_used))
                 cur_state = next_state
                 norm_cur_state = norm_next_state
                 cur_actor_hiddens = next_actor_hiddens

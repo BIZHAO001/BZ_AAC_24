@@ -1,5 +1,6 @@
 # from Nnetworks_MADDPGv3 import CriticNetwork_0724, ActorNetwork
 from Nnetworks_randomOD_radar_sur_drones_oneModel_use_tdCPA import *
+from Utilities_own_randomOD_radar_sur_drones_oneModel_use_tdCPA import *
 import torch
 from copy import deepcopy
 from torch.optim import Adam
@@ -12,7 +13,7 @@ import torch.nn as nn
 import time
 import numpy as np
 import torch as T
-from utils_randomOD_radar_sur_drones_oneModel_use_tdCPA import device
+# from utils_randomOD_radar_sur_drones_oneModel_use_tdCPA import device
 import csv
 
 
@@ -32,11 +33,12 @@ def hard_update(target, source):
 class MADDPG:
     def __init__(self, actor_dim, critic_dim, dim_act, actor_hidden_state_size, gru_history_length, n_agents,
                  args, cr_lr, ac_lr, gamma, tau, full_observable_critic_flag, use_GRU_flag, use_single_portion_selfATT,
-                 use_selfATT_with_radar, use_allNeigh_wRadar, own_obs_only):
+                 use_selfATT_with_radar, use_allNeigh_wRadar, own_obs_only, normalizer, device):
         self.args = args
         self.mode = args.mode
         self.actors = []
         self.critics = []
+        self.device = device
         # original
         # self.actors = [Actor(dim_obs, dim_act) for _ in range(n_agents)]
         # self.critics = [Critic(n_agents, dim_obs, dim_act) for _ in range(n_agents)]
@@ -67,8 +69,11 @@ class MADDPG:
         # self.critics = [CriticNetwork(critic_dim, n_agents, dim_act) for _ in range(n_agents)]
         # self.critics = [CriticNetwork_wGru(critic_dim, n_agents, dim_act, gru_history_length) for _ in range(n_agents)]
         if full_observable_critic_flag:
-            self.critics = [critic_combine_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length,
-                                                      actor_hidden_state_size) for _ in range(n_agents)]
+            # self.critics = [critic_combine_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length,
+            #                                           actor_hidden_state_size) for _ in range(n_agents)]
+
+            # one model centralized critic
+            self.critics = critic_combine_TwoPortion_fullneiWradar(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size, normalizer, device)
         else:
             # self.critics = [critic_single_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size) for _ in range(n_agents)]
             # only construct one-model
@@ -127,11 +132,11 @@ class MADDPG:
         self.actor_optimizer = Adam(self.actors.parameters(), lr=ac_lr)
         # end of only construct one-model
 
-        if self.use_cuda:
-            self.actors.cuda()
-            self.critics.cuda()
-            self.actors_target.cuda()
-            self.critics_target.cuda()
+        if self.device.type=='cuda':
+            self.actors.cuda().to(dtype=torch.float64)
+            self.critics.cuda().to(dtype=torch.float64)
+            self.actors_target.cuda().to(dtype=torch.float64)
+            self.critics_target.cuda().to(dtype=torch.float64)
 
         self.steps_done = 0
         self.episode_done = 0
@@ -265,14 +270,18 @@ class MADDPG:
         #     for param_group in self.actor_optimizer.param_groups:
         #         param_group['lr'] = changed_lr
 
-        BoolTensor = torch.cuda.BoolTensor if self.use_cuda else torch.BoolTensor
-        FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
+        if self.device.type=='cuda':
+            BoolTensor = torch.cuda.BoolTensor
+            FloatTensor = torch.cuda.FloatTensor
+        else:
+            BoolTensor = torch.BoolTensor
+            FloatTensor = torch.FloatTensor
 
         c_loss = []
         a_loss = []
 
-        for agent in range(self.n_agents):
-        # for agent in range(1):
+        # for agent in range(self.n_agents):
+        for agent in range(1):
             transitions = self.memory.sample(self.batch_size)
             batch = Experience(*zip(*transitions))
 
@@ -283,33 +292,35 @@ class MADDPG:
                 agents_cur_hidden_state = torch.stack(batch.cur_hidden).type(FloatTensor)
 
             # stack tensors only once
-            stacked_elem_0 = torch.stack([elem[0] for elem in batch.states]).to(device)
-            stacked_elem_1 = torch.stack([elem[1] for elem in batch.states]).to(device)
-            stacked_elem_2 = torch.stack([elem[2] for elem in batch.states]).to(device)
+            stacked_elem_0 = torch.stack([elem[0] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
+            stacked_elem_1 = torch.stack([elem[1] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
+            stacked_elem_2 = torch.stack([elem[2] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
             if full_observable_critic_flag == True:
                 # stacked_elem_0_combine = stacked_elem_0.view(self.batch_size, -1)  # own_state only
                 stacked_elem_0_combine = stacked_elem_0  # own_state only
                 # stacked_elem_1_combine = stacked_elem_1.view(self.batch_size, -1)  # own_state only
-                stacked_elem_1_combine = stacked_elem_1  # own_state only
+                stacked_elem_1_combine = stacked_elem_1
+                stacked_elem_2_combine = stacked_elem_2
 
             # use the stacked tensors
             # current_state in the form of list of length of agents in the environments, then, batchNo X individual Feature length
             # cur_state_list1 = [stacked_elem_0[:, i, :] for i in range(self.n_agents)]
 
             # for next state
-            next_stacked_elem_0 = torch.stack([elem[0] for elem in batch.next_states]).to(device)
-            next_stacked_elem_1 = torch.stack([elem[1] for elem in batch.next_states]).to(device)
-            next_stacked_elem_2 = torch.stack([elem[2] for elem in batch.next_states]).to(device)
+            next_stacked_elem_0 = torch.stack([elem[0] for elem in batch.next_states]).to(self.device).to(dtype=torch.float64)
+            next_stacked_elem_1 = torch.stack([elem[1] for elem in batch.next_states]).to(self.device).to(dtype=torch.float64)
+            next_stacked_elem_2 = torch.stack([elem[2] for elem in batch.next_states]).to(self.device).to(dtype=torch.float64)
             if full_observable_critic_flag == True:
                 # next_stacked_elem_0_combine = next_stacked_elem_0.view(self.batch_size, -1)
                 next_stacked_elem_0_combine = next_stacked_elem_0
                 # next_stacked_elem_1_combine = next_stacked_elem_1.view(self.batch_size, -1)
                 next_stacked_elem_1_combine = next_stacked_elem_1
+                next_stacked_elem_2_combine = next_stacked_elem_2
 
             # for done
-            dones_stacked = torch.stack([three_agent_dones for three_agent_dones in batch.dones]).to(device)
-            # done_combined = torch.from_numpy(np.array([1 if any(torch.eq(three_agent_dones, 1)) else 0 for three_agent_dones in batch.dones])).to(device)
-
+            dones_stacked = torch.stack([three_agent_dones for three_agent_dones in batch.dones]).to(self.device).to(dtype=torch.float64)
+            if full_observable_critic_flag:
+                done_combined = torch.from_numpy(np.array([1 if any(torch.eq(three_agent_dones, 1)) else 0 for three_agent_dones in batch.dones])).to(self.device).to(dtype=torch.float64)
 
             # whole_ownState = stacked_elem_0_combine  # own_state only
 
@@ -327,16 +338,22 @@ class MADDPG:
             # using one model #
             # non_final_next_actions = [self.actors_target([non_final_next_states_actorin[0][:,i,:],
             #                                               non_final_next_states_actorin[1][:,i,:]]) for i in range(self.n_agents)]
-            if use_GRU_flag:
-                non_final_next_actions = self.actors_target(
-                    [non_final_next_states_actorin[0], non_final_next_states_actorin[1]], agents_next_hidden_state)[0]
-            elif use_selfATT_with_radar or use_allNeigh_wRadar:
-                non_final_next_actions = self.actors_target([non_final_next_states_actorin[0],
-                                                             non_final_next_states_actorin[1],
-                                                             non_final_next_states_actorin[2]])
+            if full_observable_critic_flag:
+                non_final_next_actions = [self.actors_target(
+                    [non_final_next_states_actorin[0][:, i, :], non_final_next_states_actorin[1][:, i, :],
+                     non_final_next_states_actorin[2][:, i, :]]) for i in
+                 range(self.n_agents)]
+                non_final_next_actions = torch.stack(non_final_next_actions, dim=1)
             else:
-                non_final_next_actions = self.actors_target([non_final_next_states_actorin[0], non_final_next_states_actorin[1]])
-            # end of using one model
+                if use_GRU_flag:
+                    non_final_next_actions = self.actors_target(
+                        [non_final_next_states_actorin[0], non_final_next_states_actorin[1]], agents_next_hidden_state)[0]
+                elif use_selfATT_with_radar or use_allNeigh_wRadar:
+                    non_final_next_actions = self.actors_target([non_final_next_states_actorin[0],
+                                                                 non_final_next_states_actorin[1],
+                                                                 non_final_next_states_actorin[2]])
+                else:
+                    non_final_next_actions = self.actors_target([non_final_next_states_actorin[0], non_final_next_states_actorin[1]])
 
             # non_final_next_combine_actions = torch.stack(non_final_next_actions).view(self.batch_size, -1)
             non_final_next_combine_actions = non_final_next_actions
@@ -345,7 +362,7 @@ class MADDPG:
             # current_Q = self.critics[agent](whole_state, whole_action, whole_agent_combine_gru)
             # current_Q = self.critics[agent](whole_state, whole_action, history_batch[:, :, agent, :])
             if full_observable_critic_flag:
-                current_Q = self.critics[agent]([stacked_elem_0_combine, stacked_elem_1_combine], whole_curren_action)
+                current_Q = self.critics([stacked_elem_0_combine, stacked_elem_1_combine, stacked_elem_2_combine], whole_curren_action)
             else:
                 # current_Q = self.critics[agent]([stacked_elem_0[:,agent,:], stacked_elem_1[:,agent,:]], action_batch[:,agent,:])
                 # using one model
@@ -363,10 +380,9 @@ class MADDPG:
                 # next_target_critic_value = self.critics_target[agent](next_stacked_elem_0_combine, non_final_next_actions.view(-1,self.n_agents * self.n_actions), whole_agent_combine_gru).squeeze()
                 # next_target_critic_value = self.critics_target[agent](next_stacked_elem_0_combine, non_final_next_actions.view(-1,self.n_agents * self.n_actions), history_batch[:, :, agent, :]).squeeze()
                 if full_observable_critic_flag:
-                    next_target_critic_value = self.critics_target[agent](
-                        [next_stacked_elem_0_combine, next_stacked_elem_1_combine],
+                    next_target_critic_value = self.critics_target(
+                        [next_stacked_elem_0_combine, next_stacked_elem_1_combine, next_stacked_elem_2_combine],
                         non_final_next_combine_actions).squeeze()
-
                 else:
                     # next_target_critic_value = self.critics_target[agent](
                     #     [next_stacked_elem_0[:, agent, :], next_stacked_elem_1[:, agent, :]],
@@ -383,13 +399,14 @@ class MADDPG:
                             non_final_next_actions).squeeze()
 
                 # tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1-dones_stacked[:, agent])
-                tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1-dones_stacked)  # for one model
                 # reward_cal = reward_batch[:, agent].clone()
                 reward_cal = reward_batch.clone()  # for one model
                 if full_observable_critic_flag:
+                    tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1 - done_combined)  # for one model
                     target_Q = (reward_batch[:, agent]) + (
                                 self.GAMMA * next_target_critic_value * (1 - done_combined))
                 else:
+                    tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1 - dones_stacked)  # for one model
                     target_Q = (reward_batch) + (self.GAMMA * next_target_critic_value * (1-dones_stacked))
                 target_Q = target_Q.unsqueeze(1)
                 tar_Q_after_rew = target_Q.clone()
@@ -413,13 +430,20 @@ class MADDPG:
             # self.critic_optimizer[agent].step()
             self.critic_optimizer.step()
 
-            # action_i = self.actors[agent]([stacked_elem_0[:,agent,:], stacked_elem_1[:,agent,:]])
-            if use_GRU_flag:
-                action_i = self.actors([stacked_elem_0, stacked_elem_1], agents_cur_hidden_state)[0]
-            elif use_selfATT_with_radar or use_allNeigh_wRadar:
-                action_i = self.actors([stacked_elem_0, stacked_elem_1, stacked_elem_2])
+            if full_observable_critic_flag:
+                action_i = []
+                for i in range(self.n_agents):
+                    one_agent_act = self.actors(
+                        [stacked_elem_0_combine[:,i,:], stacked_elem_1_combine[:,i,:], stacked_elem_2_combine[:,i,:]])
+                    action_i.append(one_agent_act)
+                action_i = torch.stack(action_i, dim=1)
             else:
-                action_i = self.actors([stacked_elem_0, stacked_elem_1])
+                if use_GRU_flag:
+                    action_i = self.actors([stacked_elem_0, stacked_elem_1], agents_cur_hidden_state)[0]
+                elif use_selfATT_with_radar or use_allNeigh_wRadar:
+                    action_i = self.actors([stacked_elem_0, stacked_elem_1, stacked_elem_2])
+                else:
+                    action_i = self.actors([stacked_elem_0, stacked_elem_1])
             # ac = action_batch.clone()
 
             ac = action_i.squeeze(0)  # replace the actor from self.actors[agent] into action batch
@@ -429,7 +453,7 @@ class MADDPG:
             # actor_loss = -self.critics[agent](whole_state, whole_action_action_replaced, whole_hs).mean()
             # actor_loss = 3-self.critics[agent](whole_state, whole_action_action_replaced, whole_agent_combine_gru).mean()
             if full_observable_critic_flag:
-                actor_loss = 3 - self.critics[agent]([stacked_elem_0_combine, stacked_elem_1_combine], combine_action_action_replaced).mean()
+                actor_loss = -self.critics([stacked_elem_0_combine, stacked_elem_1_combine, stacked_elem_2_combine], action_i).mean()
                 # actor_loss = - self.critics[agent]([stacked_elem_0_combine, stacked_elem_1_combine], combine_action_action_replaced).mean()
             else:
                 # actor_loss = 3 - self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
@@ -796,6 +820,7 @@ class MADDPG:
         if len(self.memory) <= self.batch_size:
             return None, None, single_eps_critic_cal_record, current_row
 
+        # step_update_time_start = time.time()
         BoolTensor = torch.cuda.BoolTensor if self.use_cuda else torch.BoolTensor
         FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         c_loss = []
@@ -804,6 +829,10 @@ class MADDPG:
         total_actor_loss = 0.0
         transitions = self.memory.sample(self.batch_size)
         batch = Experience(*zip(*transitions))
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 0th portion time used is {} milliseconds".format(current_step, update_time_used))
+
+        step_update_time_start = time.time()
         experience_replay_record.append([f'episode {i_episode} step {current_step}:'])
         # store experience_replay
         # experience_to_store = (batch.states, batch.actions, batch.rewards, batch.dones, batch.next_states)
@@ -844,7 +873,10 @@ class MADDPG:
                         for _ in range(2):
                             step_data['batch_idx'].append('-')
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 1st portion time used is {} milliseconds".format(current_step, update_time_used))
 
+        # step_update_time_start = time.time()  # 2nd portion
         action_batch = torch.stack(batch.actions).type(FloatTensor)
         reward_batch = torch.stack(batch.rewards).type(FloatTensor)
 
@@ -937,9 +969,14 @@ class MADDPG:
             else:
                 current_Q = self.critics([stacked_elem_0, stacked_elem_1], action_batch)
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 2st portion time used is {} milliseconds".format(current_step, update_time_used))
+
         # has_positive_values = (current_Q > 0).any()
         # if has_positive_values:
         #     print("true")
+
+        # step_update_time_start = time.time()  # 3nd portion
         with T.no_grad():
             # next_target_critic_value = self.critics_target[agent](next_stacked_elem_0_combine, non_final_next_actions.view(-1,self.n_agents * self.n_actions), whole_agent_combine_gru).squeeze()
             # next_target_critic_value = self.critics_target[agent](next_stacked_elem_0_combine, non_final_next_actions.view(-1,self.n_agents * self.n_actions), history_batch[:, :, agent, :]).squeeze()
@@ -986,6 +1023,10 @@ class MADDPG:
                 step_data['targetQ'].append('_')
                 step_data['targetQ'].append('_')
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 3st portion time used is {} milliseconds".format(current_step, update_time_used))
+
+        # step_update_time_start = time.time()  # 4th portion
         loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
         step_data['lossQ'].append(loss_Q.detach().cpu().numpy())
         for _ in range((3*self.batch_size)-1):  # 3 is the number of elements inside state
@@ -1077,6 +1118,10 @@ class MADDPG:
         self.critic_optimizer.step()
         self.actor_optimizer.step()
 
+        # update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 4th portion time used is {} milliseconds".format(current_step, update_time_used))
+
+        # step_update_time_start = time.time()  # 5th portion
         # save to excel only after loss is recorded
         # Convert the step data into a DataFrame
         df_step = pd.DataFrame(step_data)
@@ -1086,10 +1131,12 @@ class MADDPG:
         # Update current_row to the next starting point
         current_row += len(df_step) + 1  # +1 for an empty row after each step
 
+
         if i_episode % UPDATE_EVERY == 0:  # perform a soft update at each step of an episode.
             soft_update(self.critics_target, self.critics, self.tau)
             soft_update(self.actors_target, self.actors, self.tau)
-
+        update_time_used = (time.time() - step_update_time_start) * 1000
+        # print("current step {} 5th portion time used is {} milliseconds".format(current_step, update_time_used))
         return c_loss, a_loss, single_eps_critic_cal_record, current_row
 
 
@@ -1110,9 +1157,9 @@ class MADDPG:
 
     def choose_action(self, state, cur_total_step, cur_episode, step, mini_noise_eps, noise_start_level, actor_hiddens, use_allNeigh_wRadar, use_selfATT_with_radar, own_obs_only, noisy=True, use_GRU_flag=False):
         # ------------- MADDPG_test_181123_10_10_54 version noise -------------------
-        obs = torch.from_numpy(np.stack(state[0])).float().to(device)
-        obs_full_nei = torch.from_numpy(np.stack(state[1])).float().to(device)
-        obs_grid = torch.from_numpy(np.stack(state[2])).float().to(device)
+        obs = torch.from_numpy(np.stack(state[0])).float().to(self.device).to(dtype=torch.float64)
+        obs_full_nei = torch.from_numpy(np.stack(state[1])).float().to(self.device).to(dtype=torch.float64)
+        obs_grid = torch.from_numpy(np.stack(state[2])).float().to(self.device).to(dtype=torch.float64)
         noise_value = np.zeros(2)
 
         # if len(gru_history) < self.args.gru_history_length:
@@ -1132,7 +1179,7 @@ class MADDPG:
         FloatTensor = torch.cuda.FloatTensor if self.use_cuda else torch.FloatTensor
         # this for loop used to decrease noise level for all agents before taking any action
         # gru_history_input = torch.FloatTensor(gru_history_input).to(device)  # batch x seq_length x no_agent x feature_length
-        gru_history_input = torch.FloatTensor(actor_hiddens).unsqueeze(0).to(device)  # batch x no_agent x feature_length
+        gru_history_input = torch.FloatTensor(actor_hiddens).unsqueeze(0).to(self.device)  # batch x no_agent x feature_length
         for i in range(self.n_agents):
             self.var[i] = self.get_custom_linear_scaling_factor(cur_episode, mini_noise_eps, noise_start_level)  # self.var[i] will decrease as the episode increase
             # self.var[i] = self.exponential_decay_variance(cur_episode, mini_noise_eps, noise_start_level)  # self.var[i] will decrease as the episode increase

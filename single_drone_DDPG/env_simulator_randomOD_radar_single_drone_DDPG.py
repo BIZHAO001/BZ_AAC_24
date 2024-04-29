@@ -471,11 +471,11 @@ class env_simulator:
             # draw occupied_poly
             for one_poly in self.world_map_2D_polyList[0][0]:
                 one_poly_mat = shapelypoly_to_matpoly(one_poly, True, 'y', 'b')
-                # ax.add_patch(one_poly_mat)
+                ax.add_patch(one_poly_mat)
             # draw non-occupied_poly
             for zero_poly in self.world_map_2D_polyList[0][1]:
                 zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
-                ax.add_patch(zero_poly_mat)
+                # ax.add_patch(zero_poly_mat)
 
             # show building obstacles
             for poly in self.buildingPolygons:

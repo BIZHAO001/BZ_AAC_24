@@ -646,6 +646,12 @@ class NormalizeData:
         # vy_normalized = (vy / self.spd_max) * 2 - 1
         return np.array([vx_normalized, vy_normalized])
 
+    def reverse_nmlz_vel(self, norm_vel):
+        norm_vx, norm_vy = norm_vel[0], norm_vel[1]
+        vx = norm_vx * self.spd_max
+        vy = norm_vy * self.spd_max
+        return np.array([vx, vy])
+
     def nmlz_acc(self, cur_acc):
         ax, ay = cur_acc[0], cur_acc[1]
         # ax_normalized = ((ax - self.acc_min) / (self.acc_max-self.acc_min)) * 2 - 1
