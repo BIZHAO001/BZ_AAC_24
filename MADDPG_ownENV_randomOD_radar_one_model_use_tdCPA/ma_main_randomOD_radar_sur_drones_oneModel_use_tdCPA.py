@@ -41,7 +41,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-device = torch.device('cpu')
+# device = torch.device('cpu')
 
 
 def main(args):
@@ -65,8 +65,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    use_wanDB = False
-    # use_wanDB = True
+    # use_wanDB = False
+    use_wanDB = True
 
     evaluation_by_episode = True
     # evaluation_by_episode = False
@@ -77,8 +77,8 @@ def main(args):
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
 
-    # full_observable_critic_flag = True
-    full_observable_critic_flag = False
+    full_observable_critic_flag = True
+    # full_observable_critic_flag = False
     #
     # transfer_learning = True
     transfer_learning = False
@@ -129,11 +129,15 @@ def main(args):
     if full_observable_critic_flag:
         # actor_dim = [6, 18, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [8, 18, 6]  # dim host, maximum dim grid, dim other drones
-        actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]  # dim host, maximum dim grid, dim other drones
+        # actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]  # dim host, maximum dim grid, dim other drones
+        actor_dim = [7, (total_agentNum - 1) * 5, 18, 6]  # dim host, maximum dim grid, dim other drones
         # actor_dim = [26, 18, 6]  # dim host, maximum dim grid, dim other drones
         # critic_dim = [6, 18, 6]
         # critic_dim = [8, 18, 6]
-        critic_dim = [total_agentNum*9, total_agentNum*36, 6]
+        # critic_dim = [total_agentNum*9, total_agentNum*36, 6]
+        # critic_dim = [total_agentNum*(7+5), total_agentNum*18, 6]
+        # critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+        critic_dim = [7]
         # critic_dim = [26, 18, 6]
         # critic_dim = [ea_dim * total_agentNum for ea_dim in actor_dim]
     else:
@@ -231,7 +235,7 @@ def main(args):
     torch.manual_seed(args.seed)  # this is the seed
 
     if args.algo == "maddpg":
-        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_single_portion_selfATT, use_selfATT_with_radar, use_allNeigh_wRadar, own_obs_only)
+        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_single_portion_selfATT, use_selfATT_with_radar, use_allNeigh_wRadar, own_obs_only, env.normalizer, device)
 
     episode = 0
     current_row = 0
@@ -279,15 +283,15 @@ def main(args):
     dummy_xy = (None, None)  # this is a dummy tuple of xy, is not useful during normal training, it is only useful when generating reward map
     if args.mode == "eval":
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
-        args.max_episodes = 5  # only evaluate one episode during evaluation mode.
-        # args.max_episodes = 100
+        # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
+        args.max_episodes = 100
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\120424_16_40_35\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\230424_21_17_52\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(20000)
+        episode_to_check = str(100000)
         # using one model, so we load all the same
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
@@ -314,7 +318,7 @@ def main(args):
         episode_start_time = time.time()
         episode += 1
         eps_reset_start_time = time.time()
-        cur_state, norm_cur_state = env.reset_world(total_agentNum, show=0)
+        cur_state, norm_cur_state = env.reset_world(total_agentNum, full_observable_critic_flag, show=0)
         eps_reset_time_used = (time.time()-eps_reset_start_time)*1000
         # print("current episode {} reset time used is {} milliseconds".format(episode, eps_reset_time_used))  # need to + 1 here, or else will misrecord as the previous episode
         step_collision_record = [[] for _ in range(total_agentNum)]  # reset at each episode, so that we can record down collision at each step for each agent.
@@ -358,7 +362,7 @@ def main(args):
                 # action = model.choose_action(cur_state, episode, noisy=True)
 
                 one_step_transition_start = time.time()
-                next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max, args, evaluation_by_episode)
+                next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max, args, evaluation_by_episode, full_observable_critic_flag)
                 step_transition_time = (time.time() - one_step_transition_start)*1000
                 # print("current step transition time used is {} milliseconds".format(step_transition_time))
 
@@ -490,36 +494,36 @@ def main(args):
                     history_tensor = torch.FloatTensor(np.array(gru_history)).to(device)
 
                     # padded_tensor = torch.nn.functional.pad(hs_tensor, pad=(0, 0, 0, 0, 0, args.episode_length), mode='constant', value=0)
+                    if full_observable_critic_flag:
+                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
+                    else:
+                        # ------- push to memory one by one ----------
+                        # for obs and next_obs
+                        one_agent_obs = []
+                        for i in range(total_agentNum):
+                            one_agent_one_portion = []
+                            for observation_portion in obs:
+                                if isinstance(observation_portion, list):
+                                    one_agent_one_portion.append(observation_portion[i])
+                                else:
+                                    one_agent_one_portion.append(observation_portion[i, :])
+                            one_agent_obs.append(one_agent_one_portion)
+                        one_agent_next_obs = []
+                        for i in range(total_agentNum):
+                            one_agent_one_portion = []
+                            for observation_portion in next_obs:
+                                if isinstance(observation_portion, list):
+                                    one_agent_one_portion.append(observation_portion[i])
+                                else:
+                                    one_agent_one_portion.append(observation_portion[i, :])
+                            one_agent_next_obs.append(one_agent_one_portion)
 
-                    # model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
-
-                    # ------- push to memory one by one ----------
-                    # for obs and next_obs
-                    one_agent_obs = []
-                    for i in range(total_agentNum):
-                        one_agent_one_portion = []
-                        for observation_portion in obs:
-                            if isinstance(observation_portion, list):
-                                one_agent_one_portion.append(observation_portion[i])
-                            else:
-                                one_agent_one_portion.append(observation_portion[i, :])
-                        one_agent_obs.append(one_agent_one_portion)
-                    one_agent_next_obs = []
-                    for i in range(total_agentNum):
-                        one_agent_one_portion = []
-                        for observation_portion in next_obs:
-                            if isinstance(observation_portion, list):
-                                one_agent_one_portion.append(observation_portion[i])
-                            else:
-                                one_agent_one_portion.append(observation_portion[i, :])
-                        one_agent_next_obs.append(one_agent_one_portion)
-
-                    for i in range(len(one_agent_next_obs)):
-                        # if done_tensor[i] == 1:
-                        #     continue
-                        model.memory.push(one_agent_obs[i], ac_tensor[i, :], one_agent_next_obs[i], rw_tensor[i], done_tensor[i], history_tensor[:,i,:],
-                                          cur_actor_hiddens[i, :], next_actor_hiddens[i,:])
-                    # ------- end of push to memory one by one ----------
+                        for i in range(len(one_agent_next_obs)):
+                            # if done_tensor[i] == 1:
+                            #     continue
+                            model.memory.push(one_agent_obs[i], ac_tensor[i, :], one_agent_next_obs[i], rw_tensor[i], done_tensor[i], history_tensor[:,i,:],
+                                              cur_actor_hiddens[i, :], next_actor_hiddens[i,:])
+                        # ------- end of push to memory one by one ----------
 
                 # accum_reward = accum_reward + reward_aft_action[0]  # we just take the first agent's reward, because we are using a joint reward, so all agents obtain the same reward.
                 if full_observable_critic_flag:
@@ -790,7 +794,7 @@ def main(args):
                 next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_allNeigh_wRadar, use_selfATT_with_radar, own_obs_only, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
                 # nearest_two_drones
-                next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max, args, evaluation_by_episode)  # no heading update here
+                next_state, norm_next_state, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = env.step(action, step, acc_max, args, evaluation_by_episode, full_observable_critic_flag)  # no heading update here
                 # reward_aft_action, done_aft_action, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode, own_obs_only)
                 reward_aft_action, done_aft_action, check_goal, step_reward_record, eps_status_holder, step_collision_record, bound_building_check = env.ss_reward_Mar(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode)
                 # reward_aft_action, done_aft_action, check_goal, step_reward_record = env.get_step_reward_5_v3(step, step_reward_record)
@@ -1088,7 +1092,8 @@ if __name__ == '__main__':
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     # parser.add_argument('--memory_length', default=int(1e4), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
-    parser.add_argument('--batch_size', default=512, type=int)  # original 512
+    parser.add_argument('--batch_size', default=10, type=int)  # original 512
+    # parser.add_argument('--batch_size', default=512, type=int)  # original 512
     # parser.add_argument('--batch_size', default=3, type=int)  # original 512
     # parser.add_argument('--batch_size', default=1536, type=int)  # original 512
     parser.add_argument('--render_flag', default=False, type=bool)

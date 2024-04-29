@@ -262,30 +262,59 @@
 # plt.grid(True)
 # plt.show()
 
+# import numpy as np
+# import matplotlib.pyplot as plt
+# import os
+# import matplotlib
+#
+# os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+# matplotlib.use('TkAgg')
+# # Let's assume 'rewards' is a numpy array containing the reward values
+# # For example: rewards = np.random.randn(25000)  # Replace this with your actual reward data
+#
+# def running_average(data, window_size):
+#     """ Compute the running average of the data with a specified window size. """
+#     cumsum_vec = np.cumsum(np.insert(data, 0, 0))
+#     return (cumsum_vec[window_size:] - cumsum_vec[:-window_size]) / window_size
+#
+# rewards = np.random.randn(25000)  # Replace this with your actual reward data
+# # Apply the running average with a window size of 10
+# smoothed_rewards = running_average(rewards, 10)
+#
+# # Plotting the results
+# plt.figure(figsize=(10, 5))
+# plt.plot(rewards, color='lightgrey', alpha=0.5, label='Raw rewards')
+# plt.plot(smoothed_rewards, color='orange', label='Running Average (10 steps)')
+# plt.title('Overall Reward')
+# plt.xlabel('Step')
+# plt.legend()
+# plt.show()
+
 import numpy as np
-import matplotlib.pyplot as plt
-import os
-import matplotlib
+from scipy.ndimage import distance_transform_edt
 
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-matplotlib.use('TkAgg')
-# Let's assume 'rewards' is a numpy array containing the reward values
-# For example: rewards = np.random.randn(25000)  # Replace this with your actual reward data
 
-def running_average(data, window_size):
-    """ Compute the running average of the data with a specified window size. """
-    cumsum_vec = np.cumsum(np.insert(data, 0, 0))
-    return (cumsum_vec[window_size:] - cumsum_vec[:-window_size]) / window_size
+def min_corridor_width(grid):
+    # Invert the grid: obstacles are 0, free space is 1.
+    inverted_grid = 1 - grid
 
-rewards = np.random.randn(25000)  # Replace this with your actual reward data
-# Apply the running average with a window size of 10
-smoothed_rewards = running_average(rewards, 10)
+    # Perform distance transform.
+    distances = distance_transform_edt(inverted_grid)
 
-# Plotting the results
-plt.figure(figsize=(10, 5))
-plt.plot(rewards, color='lightgrey', alpha=0.5, label='Raw rewards')
-plt.plot(smoothed_rewards, color='orange', label='Running Average (10 steps)')
-plt.title('Overall Reward')
-plt.xlabel('Step')
-plt.legend()
-plt.show()
+    # The corridor width is twice the minimum distance to an obstacle,
+    # minus one to account for the center cell itself.
+    # We're looking for the minimum corridor width, so we find the minimum distance.
+    corridor_width = 2 * np.min(distances[grid == 0]) - 1
+
+    return corridor_width
+
+
+# Example usage:
+grid = np.array([
+    [0, 0, 1, 0, 0],
+    [0, 0, 1, 0, 0],
+    [1, 1, 1, 1, 0],
+    [0, 0, 0, 0, 0]
+])
+
+print(min_corridor_width(grid))

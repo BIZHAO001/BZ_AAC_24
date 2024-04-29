@@ -309,7 +309,6 @@ class env_simulator:
 
             jps_map = self.world_map_2D_jps_collection[random_map_idx]
 
-
             outPath = jps_find_path((int(small_area_map_s[0]),int(small_area_map_s[1])), (int(small_area_map_e[0]),int(small_area_map_e[1])), jps_map)
 
             # outPath = jps.find_path(small_area_map_s, small_area_map_e, width, height, jps_map)[0]
@@ -374,51 +373,77 @@ class env_simulator:
 
             agentsCoor_list.append(self.all_agents[agentIdx].pos)
 
-        #     loop_count = loop_count + 1
-        #     if loop_count % 500 == 0:
-        #         print("set {} generated".format(loop_count))
-        # print("The {}th set starting point generated, one initial collision case happened".format(loop_count))
+            # check the intersection grid with the current lines
+            empty_grid_tree = STRtree(self.world_map_2D_polyList_collection[random_map_idx][0][1])
+            intersected_polygons = [self.world_map_2D_polyList_collection[random_map_idx][0][1][poly] for poly in empty_grid_tree.query(self.all_agents[0].ref_line) if self.world_map_2D_polyList_collection[random_map_idx][0][1][poly].intersects(self.all_agents[0].ref_line)]
+            centroids_grid_intersect_refLine = [poly.centroid for poly in intersected_polygons]
+            centroids_occupied_grids = [poly.centroid for poly in self.world_map_2D_polyList_collection[random_map_idx][0][0]]
+            tree_centroids_occupied_grids = STRtree(centroids_occupied_grids)
+            bound_startpt = Point(self.all_agents[agentIdx].ini_pos).buffer(15)
+            bound_endpt = Point(self.all_agents[agentIdx].goal[-1]).buffer(15)
+            filtered_centroids = []
+            for centroid in centroids_grid_intersect_refLine:
+                # Check distance from each centroid to the centroids in group 2
+                nearby_indices = tree_centroids_occupied_grids.query(centroid.buffer(20))
+                nearby_centroids = [centroids_occupied_grids[i] for i in nearby_indices]
 
-        # overall_state, norm_overall_state = self.cur_state_norm_state_fully_observable(agentRefer_dict)
-        # print('time used is {}'.format(time.time() - start_time))
+                # Check distance to the special points
+                is_near_start = centroid.within(bound_startpt)
+                is_near_end = centroid.within(bound_endpt)
+                if (not is_near_start and not is_near_end and
+                        all(centroid.distance(centroid_pt) >= 20 for centroid_pt in nearby_centroids)):
+                    filtered_centroids.append(centroid)
 
         # we set up geo-fence area here
-        for _ in range(1):  # we create 1 centre points for generate temporary geo-fence
-            # get the nearest point from the host drone's pos to its ref line
+        geo_fence_num = 1
+        distance_from_start = 7.5  # Distances from the start and end points of the LineString
+        distance_from_end = 7.5  # we ensure the geo-fence will not cover the start and end point.
+        if (self.all_agents[0].ref_line.length > (distance_from_start + distance_from_end)) and len(
+                filtered_centroids) > 0:
+            gf_to_create = min(geo_fence_num, len(filtered_centroids))
+            sampled_points = random.sample(filtered_centroids, gf_to_create)
+            for point_on_line in sampled_points:
+                # Fixed distance within which the point should be generated
+                fixed_distance = 2.5  # don't deviate from ref line too far
+                # Generate a random bearing and distance
+                random_bearing = random.uniform(0, 2 * math.pi)  # Angle in radians
+                random_distance_from_point = random.uniform(0, fixed_distance)
+                # Calculate the random point's coordinates
+                random_point_x = point_on_line.x + random_distance_from_point * math.cos(random_bearing)
+                random_point_y = point_on_line.y + random_distance_from_point * math.sin(random_bearing)
+                circle_centre = Point(random_point_x, random_point_y)
+                geo_fence = circle_centre.buffer(5)
+                self.geo_fence_area.append(geo_fence)
 
-            # Distances from the start and end points of the LineString
-            # we ensure the geo-fence will not cover the start and end point.
-            distance_from_start = 7.5
-            distance_from_end = 7.5
-            # Check if the LineString is long enough
-            if self.all_agents[0].ref_line.length > (distance_from_start + distance_from_end):
-                # The line is long enough; calculate the length of the target segment
-                segment_length = self.all_agents[0].ref_line.length - (distance_from_start + distance_from_end)
-                # Generate a random distance along the segment
-                random_distance_along_segment = random.uniform(0, segment_length)
-                # Calculate the actual distance from the start of the LineString
-                actual_distance = distance_from_start + random_distance_along_segment
-                # Interpolate the random point along the LineString
-                point_on_line = self.all_agents[0].ref_line.interpolate(actual_distance)
-            else:
-                # The line is not long enough; interpolate the midpoint of the LineString
-                point_on_line = self.all_agents[0].ref_line.interpolate(self.all_agents[0].ref_line.length / 2)
+        # for _ in range(1):  # we create 1 centre points for generate temporary geo-fence
+        #     # get the nearest point from the host drone's pos to its ref line
+        #
+        #     # Check if the LineString is long enough
+        #     if self.all_agents[0].ref_line.length > (distance_from_start + distance_from_end):
+        #         # The line is long enough; calculate the length of the target segment
+        #         segment_length = self.all_agents[0].ref_line.length - (distance_from_start + distance_from_end)
+        #         # Generate a random distance along the segment
+        #         random_distance_along_segment = random.uniform(0, segment_length)
+        #         # Calculate the actual distance from the start of the LineString
+        #         actual_distance = distance_from_start + random_distance_along_segment
+        #         # Interpolate the random point along the LineString
+        #         point_on_line = self.all_agents[0].ref_line.interpolate(actual_distance)
+        #     else:
+        #         # The line is not long enough; interpolate the midpoint of the LineString
+        #         point_on_line = self.all_agents[0].ref_line.interpolate(self.all_agents[0].ref_line.length / 2)
+        #
+        #     # Fixed distance within which the point should be generated
+        #     fixed_distance = 2.5  # don't deviate from ref line too far
+        #    # Generate a random bearing and distance
+        #     random_bearing = random.uniform(0, 2 * math.pi)  # Angle in radians
+        #     random_distance_from_point = random.uniform(0, fixed_distance)
+        #     # Calculate the random point's coordinates
+        #     random_point_x = point_on_line.x + random_distance_from_point * math.cos(random_bearing)
+        #     random_point_y = point_on_line.y + random_distance_from_point * math.sin(random_bearing)
+        #     circle_centre = Point(random_point_x, random_point_y)
+        #     geo_fence = circle_centre.buffer(5)
+        #     self.geo_fence_area.append(geo_fence)
 
-            nearest_points = self.all_agents[0].ref_line.interpolate(self.all_agents[0].ref_line.project(Point(self.all_agents[0].pos)))
-
-            # Fixed distance within which the point should be generated
-            fixed_distance = 2.5  # don't deviate from ref line too far
-
-           # Generate a random bearing and distance
-            random_bearing = random.uniform(0, 2 * math.pi)  # Angle in radians
-            random_distance_from_point = random.uniform(0, fixed_distance)
-
-            # Calculate the random point's coordinates
-            random_point_x = point_on_line.x + random_distance_from_point * math.cos(random_bearing)
-            random_point_y = point_on_line.y + random_distance_from_point * math.sin(random_bearing)
-            circle_centre = Point(random_point_x, random_point_y)
-            geo_fence = circle_centre.buffer(5)
-            self.geo_fence_area.append(geo_fence)
         overall_state, norm_overall_state, polygons_list, prob_display = self.cur_state_norm_state_v3(agentRefer_dict, random_map_idx)
         if show:
             os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -2618,7 +2643,7 @@ class env_simulator:
             dist_away = np.linalg.norm(drone_obj.ini_pos - drone_obj.goal[-1])
             after_dist_hg = np.linalg.norm(drone_obj.pos - drone_obj.goal[-1])  # distance to goal after action
             if after_dist_hg > dist_away:
-                dist_to_goal = dist_to_goal_coeff * 0
+                dist_to_goal = np.array(dist_to_goal_coeff * 0.0)
             else:
                 dist_to_goal = dist_to_goal_coeff * (1-after_dist_hg/dist_away)
             # end of V4

@@ -198,7 +198,7 @@ class env_simulator:
                 # top left
                 # plt.plot(centre_coord[0], centre_coord[1], marker='.', color='g', markersize=2)
 
-    def reset_world(self, total_agentNum, show):  # set initialize position and observation for all agents
+    def reset_world(self, total_agentNum, full_observable_critic_flag, show):  # set initialize position and observation for all agents
         self.global_time = 0.0
         self.time_step = 0.5
         # reset OU_noise as well
@@ -413,7 +413,7 @@ class env_simulator:
         # overall_state, norm_overall_state = self.cur_state_norm_state_fully_observable(agentRefer_dict)
         # print('time used is {}'.format(time.time() - start_time))
         overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, \
-        all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
+        all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict, full_observable_critic_flag)
 
         if show:
             os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -862,18 +862,25 @@ class env_simulator:
         norm_overall.append(norm_overall_state_p2)
         return overall, norm_overall
 
-    def cur_state_norm_state_v3(self, agentRefer_dict):
+    def cur_state_norm_state_v3(self, agentRefer_dict, full_observable_critic_flag):
         overall = []
         norm_overall = []
         # prepare for output states
         overall_state_p1 = []
+        combine_overall_state_p1 = []
         overall_state_p2 = []
+        combine_overall_state_p2 = []
         overall_state_p2_radar = []
+        combine_overall_state_p2_radar = []
         overall_state_p3 = []
+
         # prepare normalized output states
         norm_overall_state_p1 = []
+        combine_norm_overall_state_p1 = []
         norm_overall_state_p2 = []
+        combine_norm_overall_state_p2 = []
         norm_overall_state_p2_radar = []
+        combine_norm_overall_state_p2_radar = []
         norm_overall_state_p3 = []
 
         # record surrounding grids for all drones
@@ -3654,7 +3661,7 @@ class env_simulator:
         status_holder[drone_idx]['near_drone_penalty'] = cur_step_reward[11]
         return status_holder
 
-    def step(self, actions, current_ts, acc_max, args, evaluation_by_episode):
+    def step(self, actions, current_ts, acc_max, args, evaluation_by_episode, full_observable_critic_flag):
         next_combine_state = []
         agentCoorKD_list_update = []
         agentRefer_dict = {}  # A dictionary to use agent's current pos as key, their agent name (idx) as value
@@ -3750,7 +3757,7 @@ class env_simulator:
 
         # next_state, next_state_norm = self.cur_state_norm_state_fully_observable(agentRefer_dict)
         # start_acceleration_time = time.time()
-        next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict)
+        next_state, next_state_norm, polygons_list, all_agent_st_points, all_agent_ed_points, all_agent_intersection_point_list, all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict, full_observable_critic_flag)
         # print("obtain_current_state, time used {} milliseconds".format(
         #     (time.time() - start_acceleration_time) * 1000))
 

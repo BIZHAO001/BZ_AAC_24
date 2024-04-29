@@ -328,7 +328,7 @@ def view_static_traj(env, trajectory_eachPlay, random_map_idx):
 
             # plt.text(x-1, y-1, str(round(float(reward_each_agent[trajectory_idx][agentIDX]),2)))
             # plt.text(475, 400-trajectory_idx, 'agent' + str(agentIDX) + '_' + str(each_agent_traj[2].round(3)))
-            plt.text(475, 400-trajectory_idx, 'step' + str(trajectory_idx) + '_GL_' + str( each_agent_traj[3]['goal_leading_reward'].round(3)))
+            plt.text(env.bound_collection[random_map_idx][0], env.bound_collection[random_map_idx][3]-trajectory_idx, 'step' + str(trajectory_idx) + '_GL_' + str( each_agent_traj[3]['goal_leading_reward'].round(3)))
             # plt.text(x - 1, y - 1, 'agent_' + str(agentIDX) + '_' + str(each_agent_traj[2]))
             self_circle = Point(x, y).buffer(env.all_agents[0].protectiveBound, cap_style='round')
             grid_mat_Scir = shapelypoly_to_matpoly(self_circle, False, 'k')

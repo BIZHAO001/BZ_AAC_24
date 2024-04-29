@@ -8,14 +8,15 @@
 """
 import torch as T
 import torch.nn as nn
+from Utilities_own_randomOD_radar_sur_drones_oneModel_use_tdCPA import *
 import torch.nn.functional as F
 import torch.optim as optim
 import torch
 import numpy as np
 import math
 from torch.distributions import Normal
-use_cuda = torch.cuda.is_available()
-device = torch.device("cuda" if use_cuda else "cpu")
+# use_cuda = torch.cuda.is_available()
+# device = torch.device("cuda" if use_cuda else "cpu")
 
 class SelfAttention(nn.Module):
     def __init__(self, input_dim):
@@ -893,26 +894,119 @@ class critic_combine_TwoPortion(nn.Module):
 
 
 class critic_combine_TwoPortion_fullneiWradar(nn.Module):
-    def __init__(self, critic_obs, n_agents, n_actions, single_history, hidden_state_size):
+    def __init__(self, critic_obs, n_agents, n_actions, single_history, hidden_state_size, normalizer, my_device):
         super(critic_combine_TwoPortion_fullneiWradar, self).__init__()
+        self.normlize_tool = normalizer
+        self.device = my_device
         # Create a list to hold individual agent networks
-        self.agents_obs = nn.ModuleList()
-        self.agents_all_neigh = nn.ModuleList()
-        self.agents_grids = nn.ModuleList()
-        # Define similar network structures for each agent
-        for _ in range(n_agents):
-            agent_obs = nn.Sequential(
-                nn.Linear(critic_obs[0] + n_actions, 64),
-                nn.ReLU())
-            agent_all_nei = nn.Sequential(
-                nn.Linear(critic_obs[1], 256),
-                nn.ReLU())
-            agent_grids = nn.Sequential(
-                nn.Linear(critic_obs[2], 128),
-                nn.ReLU())
-            self.agents_obs.append(agent_obs)
-            self.agents_all_neigh.append(agent_all_nei)
-            self.agents_grids.append(agent_grids)
-        self.combine_agents_fea = nn.Sequential(nn.Linear(64+256+128, 512), nn.ReLU())
-        self.out_feature_q = nn.Sequential(nn.Linear(256, 1))
+        # self.agents_obs = nn.ModuleList()
+        # self.agents_all_neigh = nn.ModuleList()
+        # self.agents_grids = nn.ModuleList()
+        # self.combined_agent_feature = nn.ModuleList()
+        # # Define similar network structures for each agent
+        # for _ in range(n_agents):
+        #     agent_obs = nn.Sequential(
+        #         nn.Linear(critic_obs[0] + n_actions, 64),
+        #         nn.ReLU())
+        #     agent_all_nei = nn.Sequential(
+        #         nn.Linear(critic_obs[1], 128),
+        #         nn.ReLU())
+        #     agent_grids = nn.Sequential(
+        #         nn.Linear(critic_obs[2], 128),
+        #         nn.ReLU())
+        #     combine_agent_fea = nn.Sequential(nn.Linear(64 + 128 + 128, 512), nn.ReLU())
+        #     self.agents_obs.append(agent_obs)
+        #     self.agents_all_neigh.append(agent_all_nei)
+        #     self.agents_grids.append(agent_grids)
+        #     self.combined_agent_feature.append(combine_agent_fea)
+        # self.all_agent_combined_features_q = nn.Sequential(nn.Linear(n_agents*512, 4096), nn.ReLU(),
+        #                                                  nn.Linear(4096, 2048), nn.ReLU(),
+        #                                                  nn.Linear(2048, 1))
         # TOO large !!!!, N * 512 =.=
+        # V2 simplified critic
+        # self.agents_obs = nn.ModuleList()
+        # self.combined_agent_feature = nn.ModuleList()
+        # # Define similar network structures for each agent
+        # for _ in range(n_agents):
+        #     agent_obs = nn.Sequential(
+        #         nn.Linear(critic_obs[0] + n_actions, 64),
+        #         nn.ReLU())
+        #     combine_agent_fea = nn.Sequential(nn.Linear(64, 128), nn.ReLU())
+        #     self.agents_obs.append(agent_obs)
+        #     self.combined_agent_feature.append(combine_agent_fea)
+        # self.all_agent_combined_features_q = nn.Sequential(nn.Linear(n_agents*128, 2048), nn.ReLU(),
+        #                                                  nn.Linear(2048, 512), nn.ReLU(),
+        #                                                  nn.Linear(512, 1))
+        # V3 combine all critic obs directly then we use mlp to process these information
+        # self.all_agent_combined_features_q = nn.Sequential(nn.Linear(n_agents * (critic_obs[0] + n_actions), 512), nn.ReLU(),
+        #                                                    nn.Linear(512, 512), nn.ReLU(),
+        #                                                    nn.Linear(512, 256), nn.ReLU(),
+        #                                                    nn.Linear(256, 1))
+        # V3.1 (calculate next step drone position)
+        self.all_agent_combined_features_q = nn.Sequential(nn.Linear(n_agents * (critic_obs[0] + 2 + n_actions), 512), nn.ReLU(),
+                                                           nn.Linear(512, 512), nn.ReLU(),
+                                                           nn.Linear(512, 256), nn.ReLU(),
+                                                           nn.Linear(256, 1))
+
+    def forward(self, combine_state, combine_action):
+        # all_agent_merge_feat = []
+        # for i in range(len(self.agents_obs)):
+        #     one_agent_obsWaction = self.agents_obs[i](torch.concatenate((combine_state[0][:, i, :], combine_action[:, i, :]), dim=1))
+        #     one_agent_all_nei = self.agents_all_neigh[i](combine_state[1][:, i, :])
+        #     one_agent_grid = self.agents_grids[i](combine_state[2][:, i, :])
+        #     merge_fea = torch.concatenate((one_agent_obsWaction, one_agent_all_nei, one_agent_grid), dim=1)
+        #     one_agent_combine_feat = self.combined_agent_feature[i](merge_fea)
+        #     all_agent_merge_feat.append(one_agent_combine_feat)
+        # concated_all_agent_feat = torch.concatenate(all_agent_merge_feat,dim=1)
+        # q = self.all_agent_combined_features_q(concated_all_agent_feat)
+        # V2
+        # all_agent_merge_feat = []
+        # for i in range(len(self.agents_obs)):
+        #     one_agent_obsWaction = self.agents_obs[i](torch.concatenate((combine_state[0][:, i, :], combine_action[:, i, :]), dim=1))
+        #     one_agent_combine_feat = self.combined_agent_feature[i](one_agent_obsWaction)
+        #     all_agent_merge_feat.append(one_agent_combine_feat)
+        # concated_all_agent_feat = torch.concatenate(all_agent_merge_feat,dim=1)
+        # q = self.all_agent_combined_features_q(concated_all_agent_feat)
+        # V3
+        # all_agent_merge_feat = []
+        # actual_prob_coord = self.normalizer.reverse_nmlz_pos(norm_intersection_obstacle)
+        # for i in range(combine_action.shape[1]):
+        #     one_agent_obsWaction = torch.concatenate((combine_state[0][:, i, :], combine_action[:, i, :]), dim=1)
+        #     all_agent_merge_feat.append(one_agent_obsWaction)
+        # concated_all_agent_feat = torch.concatenate(all_agent_merge_feat,dim=1)
+        # q = self.all_agent_combined_features_q(concated_all_agent_feat)
+        # V3.1 (calculate next step drone position)
+        # combine state [px, py, vx, vy, ... ]
+        all_agent_merge_feat = []
+        for i in range(combine_action.shape[1]):
+            batch_newPos = []
+            for row_idx, row in enumerate(combine_state[0][:, i, :]):
+                actual_pos = self.normlize_tool.reverse_nmlz_pos(combine_state[0][:, i, :][row_idx, :][0:2].cpu())
+                actual_vel = self.normlize_tool.reverse_nmlz_vel(combine_state[0][:, i, :][row_idx, :][2:4].cpu())
+                ax = combine_action[:, 0, :][row_idx, 0] * self.normlize_tool.acc_max
+                ay = combine_action[:, 0, :][row_idx, 1] * self.normlize_tool.acc_max
+                curVelx = actual_vel[0] + ax.cpu() * 0.5
+                curVely = actual_vel[1] + ay.cpu() * 0.5
+                next_heading = math.atan2(curVely, curVelx)
+                if np.linalg.norm([curVelx.clone().detach().numpy(), curVely.clone().detach().numpy()]) >= self.normlize_tool.spd_max:
+                    # update host velocity when chosen speed has exceeded the max speed
+                    hvx = self.normlize_tool.spd_max * math.cos(next_heading)
+                    hvy = self.normlize_tool.spd_max * math.sin(next_heading)
+                    new_vel = np.array([hvx, hvy])
+                else:
+                    # update host velocity when max speed is not exceeded
+                    new_vel = np.array([curVelx.clone().detach().numpy(), curVely.clone().detach().numpy()])
+                # update the drone's position based on the update velocities
+                delta_x = new_vel[0] * 0.5
+                delta_y = new_vel[1] * 0.5
+                new_pos = np.array([actual_pos[0] + delta_x, actual_pos[1] + delta_y])
+                norm_new_pos = self.normlize_tool.nmlz_pos(new_pos)
+                batch_newPos.append(norm_new_pos)
+            tensor_batch_newPos = torch.from_numpy(np.array(batch_newPos)).to(self.device)
+
+            new_state = torch.concatenate((combine_state[0][:, i, :], tensor_batch_newPos), dim=1)
+            one_agent_obsWaction = torch.concatenate((new_state, combine_action[:, i, :]), dim=1)
+            all_agent_merge_feat.append(one_agent_obsWaction)
+        concated_all_agent_feat = torch.concatenate(all_agent_merge_feat, dim=1)
+        q = self.all_agent_combined_features_q(concated_all_agent_feat)
+        return q

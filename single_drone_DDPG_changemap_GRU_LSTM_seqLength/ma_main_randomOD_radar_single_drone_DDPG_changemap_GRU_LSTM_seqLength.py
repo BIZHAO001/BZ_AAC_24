@@ -68,8 +68,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    use_wanDB = False
-    # use_wanDB = True
+    # use_wanDB = False
+    use_wanDB = True
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -80,11 +80,11 @@ def main(args):
     # full_observable_critic_flag = True
     full_observable_critic_flag = False
 
-    # use_GRU_flag = True
-    use_GRU_flag = False
+    use_GRU_flag = True
+    # use_GRU_flag = False
 
-    use_LSTM_flag = True
-    # use_LSTM_flag = False
+    # use_LSTM_flag = True
+    use_LSTM_flag = False
 
     # use_attention_flag = True
     use_attention_flag = False
@@ -132,12 +132,14 @@ def main(args):
         critic_dim = [8, 18, 6]
         # critic_dim = [4, 18, 4]
 
-    actor_hidden_state = 64
+    # actor_hidden_state = 64
     # actor_hidden_state = 128
-    # actor_hidden_state = 256
+    actor_hidden_state = 256
     actor_hidden_state_list = [actor_hidden_state for _ in range(total_agentNum)]
 
-    history_seq_length = 10
+    # history_seq_length = 10
+    # history_seq_length = 1
+    history_seq_length = 5
     # history_seq_length = 3
     gru_history = deque(maxlen=history_seq_length)
     args.gru_history_length = history_seq_length
@@ -192,6 +194,7 @@ def main(args):
 
     # ------------ record episode time ------------- #
     eps_time_record = []
+    all_OD_geo_fence_reach = {}
     # ----------- record each collision checking version running time and decision -------#
     collision_count = 0
     one_drone_reach = 0
@@ -207,10 +210,11 @@ def main(args):
     if args.mode == "eval":
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
-        args.max_episodes = 1000
+        # args.max_episodes = 1000
+        args.max_episodes = 100
         # args.max_episodes = 20
         # args.max_episodes = 1
-        pre_fix = r'D:\MADDPG_2nd_jp\190424_16_32_01\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\260424_10_34_40\interval_record_eps'
         episode_to_check = str(10000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
@@ -231,7 +235,7 @@ def main(args):
         eps_reset_start_time = time.time()
         # random_map_idx = random.randrange(len(env.world_map_2D_collection))
         # Create a list of all indices excluding 3
-        indices = [i for i in range(len(env.world_map_2D_collection)) if i != 3]
+        indices = [i for i in range(len(env.world_map_2D_collection)) if i not in (3, 5)]
         # Select a random index from the list of indices
         random_map_idx = random.choice(indices)
         # random_map_idx = 3  # this value is the previous fixed environment
@@ -257,6 +261,7 @@ def main(args):
         accum_reward = 0
         trajectory_eachPlay = []
         lstm_hist = None
+        gru_hist = None
 
         while True:  # start of a step
             if args.mode == "train":
@@ -273,7 +278,11 @@ def main(args):
                 step_obtain_action_time_start = time.time()
                 # action, step_noise_val = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, gru_history, noisy=False) # noisy is false because we are using stochastic policy
                 if use_LSTM_flag:
-                    action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                    action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                elif use_GRU_flag:
+                    action, step_noise_val, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
+                        norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
+                        lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
                 else:
                     action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
@@ -416,8 +425,14 @@ def main(args):
                     history_tensor = torch.FloatTensor(np.array(gru_history)).to(device)
 
                     # padded_tensor = torch.nn.functional.pad(hs_tensor, pad=(0, 0, 0, 0, 0, args.episode_length), mode='constant', value=0)
-
-                    model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens, lstm_hist)
+                    if use_LSTM_flag:
+                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens, lstm_hist)
+                    elif use_GRU_flag:
+                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor,
+                                          cur_actor_hiddens, next_actor_hiddens, gru_hist)
+                    else:  # here can be lstm_hist or gru_hist don't matter as when don't use lstm or gru, both lstm_hist and gru_hist equals to None
+                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor,
+                                          cur_actor_hiddens, next_actor_hiddens, lstm_hist)
 
                 # accum_reward = accum_reward + reward_aft_action[0]  # we just take the first agent's reward, because we are using a joint reward, so all agents obtain the same reward.
                 accum_reward = accum_reward + sum(reward_aft_action)
@@ -455,7 +470,20 @@ def main(args):
                     print("Some agent triggers termination condition like collision, current episode {} ends at step {}".format(episode, step-1))  # we need to -1 here, because we perform step + 1 after each complete step. Just to be consistent with the step count inside the reward function.
                 elif all([agent.reach_target for agent_idx, agent in env.all_agents.items()]):
                     episode_decision[2] = True
-                    print("All agents have reached their destinations, episode terminated.")
+                    for agent_idx, agent in env.all_agents.items():
+                        record_key = []
+                        if agent.reach_target == True:
+                            ini_pos = agent.ini_pos
+                            goal_pos = np.array(agent.goal[-1])
+                            record_key = [ini_pos[0], ini_pos[1], goal_pos[0], goal_pos[1]]
+                            for geo_fence in env.geo_fence_area:
+                                record_key.append(geo_fence.centroid.x)
+                                record_key.append(geo_fence.centroid.y)
+                        record_key = tuple(record_key)
+                        all_OD_geo_fence_reach[record_key] = len(env.geo_fence_area)
+
+
+                    print("All agents have reached their destinations, {} steps used, episode terminated.".format(step))
                     goal_reached = goal_reached + 1
                     # show termination condition in picture when termination condition reached.
                     # os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -901,7 +929,8 @@ def main(args):
                             save_gif(env, trajectory_eachPlay, pre_fix, episode_to_check, episode, random_map_idx)
 
                     if any([agent.collision for agent_idx, agent in env.all_agents.items()]) and step < args.episode_length:
-                        # save_gif(env, trajectory_eachPlay, pre_fix, episode_to_check, episode)  # check for collision case
+                        # view_static_traj(env, trajectory_eachPlay, random_map_idx)
+                        # save_gif(env, trajectory_eachPlay, pre_fix, episode_to_check, episode, random_map_idx)
                         # if saved_gif == False:
                         #     save_gif(env, trajectory_eachPlay, pre_fix, episode_to_check, episode)
                         #     saved_gif = True  # once current episode saved, no need to save one more time.
@@ -957,6 +986,9 @@ def main(args):
         with open(file_name + '/goal_reaching.csv', 'w') as f:
             write = csv.writer(f)
             write.writerows([goal_reach_history])
+        # record the reached OD and geo-fence area
+        with open(plot_file_name + '/reached_OD_wGeo_fence.pickle', 'wb') as handle:
+            pickle.dump(all_OD_geo_fence_reach, handle, protocol=pickle.HIGHEST_PROTOCOL)
     else:
         print("total collision count is {}".format(collision_count))
         print("Collision due to bound is {}".format(crash_to_bound))
@@ -980,6 +1012,7 @@ if __name__ == '__main__':
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
     parser.add_argument('--batch_size', default=256, type=int)  # original 512
+    # parser.add_argument('--batch_size', default=10, type=int)  # original 512
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)
