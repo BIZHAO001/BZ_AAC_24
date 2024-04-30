@@ -13,9 +13,9 @@ import time
 import matplotlib.animation as animation
 import pickle
 import wandb
-from parameters_randomOD_radar_sur_drones_oneModel_use_tdCPA import initialize_parameters
-from maddpg_agent_randomOD_radar_sur_drones_oneModel_use_tdCPA import MADDPG
-from utils_randomOD_radar_sur_drones_oneModel_use_tdCPA import *
+from parameters_randomOD_radar_sur_drones_N_Model_use_tdCPA import initialize_parameters
+from maddpg_agent_randomOD_radar_sur_drones_N_Model_use_tdCPA import MADDPG
+from utils_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
 from copy import deepcopy
 import torch
 import matplotlib.pyplot as plt
@@ -25,7 +25,7 @@ from shapely.strtree import STRtree
 from matplotlib.markers import MarkerStyle
 import math
 from matplotlib.transforms import Affine2D
-from Utilities_own_randomOD_radar_sur_drones_oneModel_use_tdCPA import *
+from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
 from collections import deque
 import csv
 
@@ -41,7 +41,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-# device = torch.device('cpu')
+device = torch.device('cpu')
 
 
 def main(args):
@@ -136,8 +136,8 @@ def main(args):
         # critic_dim = [8, 18, 6]
         # critic_dim = [total_agentNum*9, total_agentNum*36, 6]
         # critic_dim = [total_agentNum*(7+5), total_agentNum*18, 6]
-        # critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
-        critic_dim = [7]
+        critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+        # critic_dim = [7]
         # critic_dim = [26, 18, 6]
         # critic_dim = [ea_dim * total_agentNum for ea_dim in actor_dim]
     else:
@@ -536,7 +536,7 @@ def main(args):
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v2(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v3(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
-                # print("current step {} update time used is {} milliseconds".format(step, update_time_used))
+                print("current step {} update time used is {} milliseconds".format(step, update_time_used))
                 cur_state = next_state
                 norm_cur_state = norm_next_state
                 cur_actor_hiddens = next_actor_hiddens
@@ -1092,8 +1092,8 @@ if __name__ == '__main__':
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     # parser.add_argument('--memory_length', default=int(1e4), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
-    parser.add_argument('--batch_size', default=10, type=int)  # original 512
-    # parser.add_argument('--batch_size', default=512, type=int)  # original 512
+    # parser.add_argument('--batch_size', default=10, type=int)  # original 512
+    parser.add_argument('--batch_size', default=512, type=int)  # original 512
     # parser.add_argument('--batch_size', default=3, type=int)  # original 512
     # parser.add_argument('--batch_size', default=1536, type=int)  # original 512
     parser.add_argument('--render_flag', default=False, type=bool)

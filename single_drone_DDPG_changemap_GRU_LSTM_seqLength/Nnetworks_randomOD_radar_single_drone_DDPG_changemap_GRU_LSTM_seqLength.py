@@ -765,7 +765,7 @@ class GRU_batch_actor_TwoPortion(nn.Module):
                 rnn_output = torch.cat(rnn_outputs, dim=1)
             # no need to reset the RNN state in the sequence
             else:
-                rnn_output, rnn_states = self.lstm(rnn_input, target_stacked_hidden)
+                rnn_output, rnn_states = self.gru(rnn_input, target_stacked_hidden)
 
             hn = rnn_states
 
