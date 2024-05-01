@@ -30,6 +30,7 @@ from matplotlib.transforms import Affine2D
 from shapely.affinity import scale
 import matplotlib.pyplot as plt
 import matplotlib
+import pickle
 import re
 import time
 from Utilities_own_randomOD_radar_single_drone_DDPG_changemap_GRU_LSTM_seqLength import *
@@ -273,6 +274,16 @@ class env_simulator:
             #     random_start_pos = (480, 360)
             #     random_end_pos = (600, 360)
             #     pass
+
+            # with open(r'D:\MADDPG_2nd_jp\290424_18_35_48\290424_18_35_48\toplot\reached_OD_wGeo_fence.pickle', 'rb') as handle:
+            #     reached_OD_geo_fence = pickle.load(handle)
+            # load_random_OD_geo_fence = random.choice(list(reached_OD_geo_fence.keys()))
+            # random_start_pos = load_random_OD_geo_fence[0:2]
+            # random_end_pos = load_random_OD_geo_fence[2:4]
+            # if len(load_random_OD_geo_fence) == 4:
+            #     random_geo_fence_ctr = None
+            # else:
+            #     random_geo_fence_ctr = load_random_OD_geo_fence[4:6]
 
             host_current_circle = Point(np.array(random_start_pos)[0], np.array(random_start_pos)[1]).buffer(self.all_agents[agentIdx].protectiveBound)
 

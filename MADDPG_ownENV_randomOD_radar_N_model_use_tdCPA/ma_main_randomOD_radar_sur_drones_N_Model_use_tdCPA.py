@@ -41,7 +41,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-device = torch.device('cpu')
+# device = torch.device('cpu')
 
 
 def main(args):
@@ -65,8 +65,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    use_wanDB = False
-    # use_wanDB = True
+    # use_wanDB = False
+    use_wanDB = True
 
     evaluation_by_episode = True
     # evaluation_by_episode = False
@@ -749,6 +749,7 @@ def main(args):
                         crash_due_to_nearest = 0
 
                     if episode % args.save_interval == 0 and args.mode == "train":
+                    # if episode % 1 == 0 and args.mode == "train":
                         save_model = time.time()
                         # save the models at a predefined interval
                         # save model to my own directory

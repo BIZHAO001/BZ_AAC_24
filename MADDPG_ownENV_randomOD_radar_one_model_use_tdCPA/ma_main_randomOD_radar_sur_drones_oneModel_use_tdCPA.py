@@ -68,8 +68,8 @@ def main(args):
     use_wanDB = False
     # use_wanDB = True
 
-    evaluation_by_episode = True
-    # evaluation_by_episode = False
+    # evaluation_by_episode = True
+    evaluation_by_episode = False
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -77,8 +77,8 @@ def main(args):
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
 
-    full_observable_critic_flag = True
-    # full_observable_critic_flag = False
+    # full_observable_critic_flag = True
+    full_observable_critic_flag = False
 
     # transfer_learning = True
     transfer_learning = False
@@ -118,9 +118,9 @@ def main(args):
     eps_start, eps_end, eps_period, eps, env, \
     agent_grid_obs, BUFFER_SIZE, BATCH_SIZE, GAMMA, TAU, UPDATE_EVERY, seed_used, max_xy = initialize_parameters()
     # total_agentNum = len(pd.read_excel(env.agentConfig))
-    total_agentNum = 3
+    # total_agentNum = 3
     # total_agentNum = 5
-    # total_agentNum = 8
+    total_agentNum = 8
     # total_agentNum = 1
     # max_nei_num = 5
     # create world
@@ -288,10 +288,10 @@ def main(args):
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\290424_20_50_44\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\290424_20_49_21\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(19000)
+        episode_to_check = str(40000)
         # using one model, so we load all the same
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
@@ -1085,7 +1085,7 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=20000, type=int)  # run for a total of 50000 episodes
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="train", type=str, help="train/eval")
+    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
     # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
     parser.add_argument('--episode_length', default=50, type=int)  # maximum play per episode
     # parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode

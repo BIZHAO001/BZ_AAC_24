@@ -909,19 +909,19 @@ class critic_combine_TwoPortion_fullneiWradar(nn.Module):
                 nn.Linear(critic_obs[0] + n_actions, 64),
                 nn.ReLU())
             agent_all_nei = nn.Sequential(
-                nn.Linear(critic_obs[1], 128),
+                nn.Linear(critic_obs[1], 64),
                 nn.ReLU())
             agent_grids = nn.Sequential(
-                nn.Linear(critic_obs[2], 128),
+                nn.Linear(critic_obs[2], 64),
                 nn.ReLU())
-            combine_agent_fea = nn.Sequential(nn.Linear(64 + 128 + 128, 512), nn.ReLU())
+            combine_agent_fea = nn.Sequential(nn.Linear(64 + 64 + 64, 256), nn.ReLU())
             self.agents_obs.append(agent_obs)
             self.agents_all_neigh.append(agent_all_nei)
             self.agents_grids.append(agent_grids)
             self.combined_agent_feature.append(combine_agent_fea)
-        self.all_agent_combined_features_q = nn.Sequential(nn.Linear(n_agents*512, 4096), nn.ReLU(),
-                                                         nn.Linear(4096, 2048), nn.ReLU(),
-                                                         nn.Linear(2048, 1))
+        self.all_agent_combined_features_q = nn.Sequential(nn.Linear(n_agents*256, 1024), nn.ReLU(),
+                                                         nn.Linear(1024, 512), nn.ReLU(),
+                                                         nn.Linear(512, 1))
         # TOO large !!!!, N * 512 =.=
         # V2 simplified critic
         # self.agents_obs = nn.ModuleList()

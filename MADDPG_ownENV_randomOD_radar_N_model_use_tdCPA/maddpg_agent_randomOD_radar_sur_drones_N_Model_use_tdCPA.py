@@ -205,7 +205,12 @@ class MADDPG:
         #     os.mkdir(r"D:\Multi_agent_AAC\old_framework_test\algo/trained_model/" + str(self.args.algo))
         if not os.path.exists(file_path):
             os.makedirs(file_path)
-        torch.save(self.actors.state_dict(), file_path + '/' +'episode_'+str(episode)+'_' + 'actor_net.pth')
+        if isinstance(self.actors, list):
+            for actor in self.actors:
+                torch.save(actor.state_dict(),
+                           file_path + '/' + 'episode_' + str(episode) + '_' + 'actor_net.pth')
+        else:
+            torch.save(self.actors.state_dict(), file_path + '/' +'episode_'+str(episode)+'_' + 'actor_net.pth')
 
     def update(self, i_episode):
 
@@ -451,7 +456,7 @@ class MADDPG:
                 target_Q = target_Q.unsqueeze(1)
                 tar_Q_after_rew = target_Q.clone()
             if full_observable_critic_flag and agent==0:
-                critic_time = time.time()
+                # critic_time = time.time()
                 loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
                 cal_loss_Q = loss_Q.clone()
                 single_eps_critic_cal_record.append([tar_Q_before_rew.detach().cpu().numpy(),
@@ -469,8 +474,8 @@ class MADDPG:
                 # self.has_gradients(self.critics[agent], agent, wandb)
                 # self.critic_optimizer[agent].step()
                 self.critic_optimizer.step()
-                end_critic_update = (time.time() - critic_time)*1000
-                print("time used in critic update is {} ms".format(end_critic_update))
+                # end_critic_update = (time.time() - critic_time)*1000
+                # print("time used in critic update is {} ms".format(end_critic_update))
 
             if full_observable_critic_flag:
                 if isinstance(self.actors, list):
@@ -513,7 +518,7 @@ class MADDPG:
                 else:
                     actor_loss = - self.critics([stacked_elem_0, stacked_elem_1], ac).mean()
 
-            actor_update_time = time.time()
+            # actor_update_time = time.time()
             # actor_loss = -self.critics[agent](stacked_elem_0[:,agent,:], ac[:, agent, :], agents_cur_hidden_state[:, agent, :])[0].mean()
             if transfer_learning:
                 if i_episode > 10000:
@@ -536,8 +541,8 @@ class MADDPG:
                     # self.has_gradients(self.actors[agent], agent, wandb)  # Replace with your actor network variable
                     # self.actor_optimizer[agent].step()
                     self.actor_optimizer.step()
-            end_actor_update_time = time.time() - actor_update_time
-            print("loop {} actor update time used is {} ms".format(agent, end_actor_update_time))
+            # end_actor_update_time = (time.time() - actor_update_time)*1000
+            # print("loop {} actor update time used is {} ms".format(agent, end_actor_update_time))
             c_loss.append(loss_Q)
             a_loss.append(actor_loss)
 
