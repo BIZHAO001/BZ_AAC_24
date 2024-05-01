@@ -3625,6 +3625,7 @@ class env_simulator:
 
         if full_observable_critic_flag:
             reward = [np.sum(reward) for _ in reward]
+            # done = any(done)
 
         # if all(check_goal):
         #     for element_idx, element in enumerate(done):

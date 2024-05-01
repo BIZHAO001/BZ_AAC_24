@@ -16,6 +16,7 @@ import torch as T
 # from utils_randomOD_radar_sur_drones_oneModel_use_tdCPA import device
 import csv
 
+device = torch.device('cuda')
 
 def soft_update(target, source, t):
     for target_param, source_param in zip(target.parameters(),
@@ -326,52 +327,51 @@ class MADDPG:
                 if agent == 0:
                     transitions = self.memory.sample(self.batch_size)
                     batch = Experience(*zip(*transitions))
+
+                    action_batch = torch.stack(batch.actions)
+
+                    stacked_elem_0_combine = torch.stack(batch.states_obs)
+                    stacked_elem_1_combine = torch.stack(batch.states_nei)
+                    stacked_elem_2_combine = torch.stack(batch.states_grid)
+
+                    next_stacked_elem_0_combine = torch.stack(batch.next_states_obs)
+                    next_stacked_elem_1_combine = torch.stack(batch.next_states_nei)
+                    next_stacked_elem_2_combine = torch.stack(batch.next_states_grid)
+
+                    reward_batch = torch.stack(batch.rewards)
+                    done_combined = torch.stack(batch.dones)
+                    non_final_next_states_actorin = [next_stacked_elem_0_combine, next_stacked_elem_1_combine, next_stacked_elem_2_combine]
             else:
                 transitions = self.memory.sample(self.batch_size)
                 batch = Experience(*zip(*transitions))
 
-            action_batch = torch.stack(batch.actions).type(FloatTensor)
-            reward_batch = torch.stack(batch.rewards).type(FloatTensor)
+                # stack tensors only once
+                stacked_elem_0 = torch.stack([elem[0] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
+                stacked_elem_1 = torch.stack([elem[1] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
+                stacked_elem_2 = torch.stack([elem[2] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
+
+                # for next state
+                next_stacked_elem_0 = torch.stack([elem[0] for elem in batch.next_states]).to(self.device).to(
+                    dtype=torch.float64)
+                next_stacked_elem_1 = torch.stack([elem[1] for elem in batch.next_states]).to(self.device).to(
+                    dtype=torch.float64)
+                next_stacked_elem_2 = torch.stack([elem[2] for elem in batch.next_states]).to(self.device).to(
+                    dtype=torch.float64)
+
+                dones_stacked = torch.stack([three_agent_dones for three_agent_dones in batch.dones]).to(
+                    self.device).to(dtype=torch.float64)
+
+                non_final_next_states_actorin = [next_stacked_elem_0, next_stacked_elem_1, next_stacked_elem_2]
+
+
             if use_GRU_flag:
                 agents_next_hidden_state = torch.stack(batch.next_hidden).type(FloatTensor)
                 agents_cur_hidden_state = torch.stack(batch.cur_hidden).type(FloatTensor)
-
-            # stack tensors only once
-            stacked_elem_0 = torch.stack([elem[0] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
-            stacked_elem_1 = torch.stack([elem[1] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
-            stacked_elem_2 = torch.stack([elem[2] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
-            if full_observable_critic_flag == True:
-                # stacked_elem_0_combine = stacked_elem_0.view(self.batch_size, -1)  # own_state only
-                stacked_elem_0_combine = stacked_elem_0  # own_state only
-                # stacked_elem_1_combine = stacked_elem_1.view(self.batch_size, -1)  # own_state only
-                stacked_elem_1_combine = stacked_elem_1
-                stacked_elem_2_combine = stacked_elem_2
-
-            # use the stacked tensors
-            # current_state in the form of list of length of agents in the environments, then, batchNo X individual Feature length
-            # cur_state_list1 = [stacked_elem_0[:, i, :] for i in range(self.n_agents)]
-
-            # for next state
-            next_stacked_elem_0 = torch.stack([elem[0] for elem in batch.next_states]).to(self.device).to(dtype=torch.float64)
-            next_stacked_elem_1 = torch.stack([elem[1] for elem in batch.next_states]).to(self.device).to(dtype=torch.float64)
-            next_stacked_elem_2 = torch.stack([elem[2] for elem in batch.next_states]).to(self.device).to(dtype=torch.float64)
-            if full_observable_critic_flag == True:
-                # next_stacked_elem_0_combine = next_stacked_elem_0.view(self.batch_size, -1)
-                next_stacked_elem_0_combine = next_stacked_elem_0
-                # next_stacked_elem_1_combine = next_stacked_elem_1.view(self.batch_size, -1)
-                next_stacked_elem_1_combine = next_stacked_elem_1
-                next_stacked_elem_2_combine = next_stacked_elem_2
-
-            # for done
-            dones_stacked = torch.stack([three_agent_dones for three_agent_dones in batch.dones]).to(self.device).to(dtype=torch.float64)
-            if full_observable_critic_flag:
-                done_combined = torch.from_numpy(np.array([1 if any(torch.eq(three_agent_dones, 1)) else 0 for three_agent_dones in batch.dones])).to(self.device).to(dtype=torch.float64)
-
             # whole_ownState = stacked_elem_0_combine  # own_state only
 
             # non_final_next_states_actorin = [next_stacked_elem_0]  # 2 portion available
             # non_final_next_states_actorin = [next_stacked_elem_0, next_stacked_elem_1]  # 2 portion available
-            non_final_next_states_actorin = [next_stacked_elem_0, next_stacked_elem_1, next_stacked_elem_2]
+
 
             # configured for target Q
 
@@ -1224,9 +1224,9 @@ class MADDPG:
 
     def choose_action(self, state, cur_total_step, cur_episode, step, mini_noise_eps, noise_start_level, actor_hiddens, use_allNeigh_wRadar, use_selfATT_with_radar, own_obs_only, noisy=True, use_GRU_flag=False):
         # ------------- MADDPG_test_181123_10_10_54 version noise -------------------
-        obs = torch.from_numpy(np.stack(state[0])).float().to(self.device).to(dtype=torch.float64)
-        obs_full_nei = torch.from_numpy(np.stack(state[1])).float().to(self.device).to(dtype=torch.float64)
-        obs_grid = torch.from_numpy(np.stack(state[2])).float().to(self.device).to(dtype=torch.float64)
+        obs = torch.from_numpy(np.stack(state[0])).to(self.device)  # .float() is change from float64 ->float32
+        obs_full_nei = torch.from_numpy(np.stack(state[1])).to(self.device)
+        obs_grid = torch.from_numpy(np.stack(state[2])).to(self.device)
         noise_value = np.zeros(2)
 
         # if len(gru_history) < self.args.gru_history_length:
@@ -1237,7 +1237,7 @@ class MADDPG:
         # gru_history_input = np.array(gru_history)
         # gru_history_input = np.expand_dims(gru_history_input, axis=0)
 
-        actions = torch.zeros(self.n_agents, self.n_actions)
+        actions = torch.zeros(self.n_agents, self.n_actions, dtype=torch.float64)
         # act_hn = torch.zeros(self.n_agents, self.n_actions)
         if use_GRU_flag:
             act_hn = torch.zeros(self.n_agents, self.actors.rnn_hidden_dim)
@@ -1287,7 +1287,7 @@ class MADDPG:
             # act = self.actors([sb.unsqueeze(0), sb_grid.unsqueeze(0)])
             if noisy:
                 noise_value = np.random.randn(2) * self.var[i]
-                act = act + torch.from_numpy(noise_value).to(self.device).to(dtype=torch.float64)
+                act = act + torch.from_numpy(noise_value).to(self.device)
                 # print("Episode {}, agent {}, noise level is {}".format(episode, i, self.var[i]))
                 act = torch.clamp(act, -1.0, 1.0)  # when using stochastic policy, we are not require to clamp again.
 

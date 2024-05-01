@@ -65,8 +65,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
     evaluation_by_episode = True
     # evaluation_by_episode = False
@@ -469,33 +469,52 @@ def main(args):
                     # for elementIdx, element in enumerate(cur_state):
                         if elementIdx != len(norm_cur_state)-1:  # meaning is not the last element
                         # if elementIdx != len(cur_state)-1:  # meaning is not the last element
-                            obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                        #     obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                            obs.append(torch.from_numpy(np.stack(element)).to(device))
+                            # obs.append(np.stack(element))
                         else:
                             sur_agents = []
                             for each_agent_list in element:
-                                sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                # sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                sur_agents.append(np.squeeze(np.array(each_agent_list), axis=1))
                             obs.append(sur_agents)
 
                     for elementIdx, element in enumerate(norm_next_state):
                     # for elementIdx, element in enumerate(cur_state):
                         if elementIdx != len(norm_next_state)-1:  # meaning is not the last element
                         # if elementIdx != len(cur_state)-1:  # meaning is not the last element
-                            next_obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                        #     next_obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                            next_obs.append(torch.from_numpy(np.stack(element)).to(device))
+                            # next_obs.append(np.stack(element))
                         else:
                             sur_agents = []
                             for each_agent_list in element:
-                                sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                # sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)))
                             next_obs.append(sur_agents)
                     # ------------------ end of store norm or non-norm state into experience replay --------------------
-                    rw_tensor = torch.FloatTensor(np.array(reward_aft_action)).to(device)
-                    ac_tensor = torch.FloatTensor(action).to(device)
-                    done_tensor = torch.FloatTensor(done_aft_action).to(device)
+                    rw_tensor = torch.tensor(np.array(reward_aft_action), device=device)
+                    # rw_tensor = np.array(reward_aft_action)
+                    # rw_tensor = torch.FloatTensor(np.array(reward_aft_action)).to(device)
+                    ac_tensor = torch.tensor(action, device=device)
+                    # ac_tensor = action
+                    # ac_tensor = torch.FloatTensor(action).to(device)
+                    if full_observable_critic_flag:
+                        eps_termination = 1.0 if any(done_aft_action) else 0.0
+                        done_tensor = torch.tensor(np.array(eps_termination), device=device)
+                    else:
+                        done_tensor = torch.tensor(np.array(done_aft_action), device=device)
+                    # done_tensor = np.array(done_aft_action)
+                    # done_tensor = torch.FloatTensor(done_aft_action).to(device)
                     # prepare hidden state information
-                    history_tensor = torch.FloatTensor(np.array(gru_history)).to(device)
+                    # history_tensor = torch.FloatTensor(np.array(gru_history)).to(device)
+                    # history_tensor = np.array(gru_history)
+                    history_tensor = torch.tensor(np.array(gru_history), device=device)
 
                     # padded_tensor = torch.nn.functional.pad(hs_tensor, pad=(0, 0, 0, 0, 0, args.episode_length), mode='constant', value=0)
                     if full_observable_critic_flag:
-                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
+                        # model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
+                        model.memory.push(obs[0], obs[1], obs[2], ac_tensor, next_obs[0], next_obs[1], next_obs[2], rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
                     else:
                         # ------- push to memory one by one ----------
                         # for obs and next_obs
