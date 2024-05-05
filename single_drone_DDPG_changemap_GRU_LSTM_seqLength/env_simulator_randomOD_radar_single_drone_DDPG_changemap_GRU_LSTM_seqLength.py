@@ -207,7 +207,7 @@ class env_simulator:
             self.all_agents[agent_i] = agent
         self.dummy_agent = self.all_agents[0]
 
-    def reset_world(self, total_agentNum, random_map_idx, show):  # set initialize position and observation for all agents
+    def reset_world(self, total_agentNum, random_map_idx, use_reached, show):  # set initialize position and observation for all agents
         self.global_time = 0.0
         # self.time_step = 0.1
         self.time_step = 0.5
@@ -216,6 +216,18 @@ class env_simulator:
 
         # make sure we clear the previous geo-fence at each episode
         self.geo_fence_area = []
+        reached_OD_geo_fence = None
+        if use_reached:
+            with open(r'D:\MADDPG_2nd_jp\010524_11_24_30\010524_11_24_30\toplot\reached_OD_wGeo_fence.pickle',
+                      'rb') as handle:
+                reached_OD_geo_fence = pickle.load(handle)
+            load_random_OD_geo_fence = random.choice(list(reached_OD_geo_fence.keys()))
+            geo_fence_number_stored, random_map_idx = reached_OD_geo_fence[load_random_OD_geo_fence]
+
+            if len(load_random_OD_geo_fence) == 4:
+                random_geo_fence_ctr = None
+            else:
+                random_geo_fence_ctr = load_random_OD_geo_fence[4:6]
 
         self.normalizer = NormalizeData([self.bound_collection[random_map_idx][0],
                                          self.bound_collection[random_map_idx][1]],
@@ -274,16 +286,9 @@ class env_simulator:
             #     random_start_pos = (480, 360)
             #     random_end_pos = (600, 360)
             #     pass
-
-            # with open(r'D:\MADDPG_2nd_jp\290424_18_35_48\290424_18_35_48\toplot\reached_OD_wGeo_fence.pickle', 'rb') as handle:
-            #     reached_OD_geo_fence = pickle.load(handle)
-            # load_random_OD_geo_fence = random.choice(list(reached_OD_geo_fence.keys()))
-            # random_start_pos = load_random_OD_geo_fence[0:2]
-            # random_end_pos = load_random_OD_geo_fence[2:4]
-            # if len(load_random_OD_geo_fence) == 4:
-            #     random_geo_fence_ctr = None
-            # else:
-            #     random_geo_fence_ctr = load_random_OD_geo_fence[4:6]
+            if reached_OD_geo_fence is not None:
+                random_start_pos = load_random_OD_geo_fence[0:2]
+                random_end_pos = load_random_OD_geo_fence[2:4]
 
             host_current_circle = Point(np.array(random_start_pos)[0], np.array(random_start_pos)[1]).buffer(self.all_agents[agentIdx].protectiveBound)
 
@@ -406,25 +411,32 @@ class env_simulator:
                     filtered_centroids.append(centroid)
 
         # we set up geo-fence area here
-        geo_fence_num = 1
-        distance_from_start = 7.5  # Distances from the start and end points of the LineString
-        distance_from_end = 7.5  # we ensure the geo-fence will not cover the start and end point.
-        if (self.all_agents[0].ref_line.length > (distance_from_start + distance_from_end)) and len(
-                filtered_centroids) > 0:
-            gf_to_create = min(geo_fence_num, len(filtered_centroids))
-            sampled_points = random.sample(filtered_centroids, gf_to_create)
-            for point_on_line in sampled_points:
-                # Fixed distance within which the point should be generated
-                fixed_distance = 2.5  # don't deviate from ref line too far
-                # Generate a random bearing and distance
-                random_bearing = random.uniform(0, 2 * math.pi)  # Angle in radians
-                random_distance_from_point = random.uniform(0, fixed_distance)
-                # Calculate the random point's coordinates
-                random_point_x = point_on_line.x + random_distance_from_point * math.cos(random_bearing)
-                random_point_y = point_on_line.y + random_distance_from_point * math.sin(random_bearing)
-                circle_centre = Point(random_point_x, random_point_y)
+        if reached_OD_geo_fence is not None:
+            geo_fence_num = geo_fence_number_stored
+            for i in range(geo_fence_num):
+                circle_centre = Point(random_geo_fence_ctr[0], random_geo_fence_ctr[1])
                 geo_fence = circle_centre.buffer(5)
                 self.geo_fence_area.append(geo_fence)
+        else:
+            geo_fence_num = 1
+            distance_from_start = 7.5  # Distances from the start and end points of the LineString
+            distance_from_end = 7.5  # we ensure the geo-fence will not cover the start and end point.
+            if (self.all_agents[0].ref_line.length > (distance_from_start + distance_from_end)) and len(
+                    filtered_centroids) > 0:
+                gf_to_create = min(geo_fence_num, len(filtered_centroids))
+                sampled_points = random.sample(filtered_centroids, gf_to_create)
+                for point_on_line in sampled_points:
+                    # Fixed distance within which the point should be generated
+                    fixed_distance = 2.5  # don't deviate from ref line too far
+                    # Generate a random bearing and distance
+                    random_bearing = random.uniform(0, 2 * math.pi)  # Angle in radians
+                    random_distance_from_point = random.uniform(0, fixed_distance)
+                    # Calculate the random point's coordinates
+                    random_point_x = point_on_line.x + random_distance_from_point * math.cos(random_bearing)
+                    random_point_y = point_on_line.y + random_distance_from_point * math.sin(random_bearing)
+                    circle_centre = Point(random_point_x, random_point_y)
+                    geo_fence = circle_centre.buffer(5)
+                    self.geo_fence_area.append(geo_fence)
 
         # for _ in range(1):  # we create 1 centre points for generate temporary geo-fence
         #     # get the nearest point from the host drone's pos to its ref line
@@ -1276,6 +1288,8 @@ class env_simulator:
 
             norm_overall_state_p1.append(norm_agent_own)
             norm_overall_state_p2.append(distances_list)
+            # norm_distances_list = [dist / 15.0 for dist in distances_list]
+            # norm_overall_state_p2.append(norm_distances_list)  # normalized distance list
 
         overall.append(overall_state_p1)
         overall.append(overall_state_p2)
