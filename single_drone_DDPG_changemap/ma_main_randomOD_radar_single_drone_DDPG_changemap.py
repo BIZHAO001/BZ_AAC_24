@@ -83,8 +83,8 @@ def main(args):
     # use_GRU_flag = True
     use_GRU_flag = False
 
-    use_LSTM_flag = True
-    # use_LSTM_flag = False
+    # use_LSTM_flag = True
+    use_LSTM_flag = False
 
     # use_attention_flag = True
     use_attention_flag = False
@@ -209,8 +209,8 @@ def main(args):
         # args.max_episodes = 1000
         # args.max_episodes = 20
         # args.max_episodes = 1
-        pre_fix = r'D:\MADDPG_2nd_jp\210424_12_14_34\interval_record_eps'
-        episode_to_check = str(10000)
+        pre_fix = r'D:\MADDPG_2nd_jp\010524_19_42_13\interval_record_eps'
+        episode_to_check = str(9000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
         load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_agent_2actor_net.pth'
@@ -230,7 +230,10 @@ def main(args):
         eps_reset_start_time = time.time()
         # random_map_idx = random.randrange(len(env.world_map_2D_collection))
         # Create a list of all indices excluding 3
-        indices = [i for i in range(len(env.world_map_2D_collection)) if i != 3]
+        # indices = [i for i in range(len(env.world_map_2D_collection)) if i != 3]
+        exclusions = {3, 5}  # Add more indices as needed  # these two maps size is different from the others
+        indices = [i for i in range(len(env.world_map_2D_collection)) if i not in exclusions]
+
         # Select a random index from the list of indices
         random_map_idx = random.choice(indices)
         # random_map_idx = 3  # this value is the previous fixed environment
@@ -274,7 +277,7 @@ def main(args):
                 if use_LSTM_flag:
                     action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
                 else:
-                    action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                    action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
                 generate_action_time = (time.time() - step_obtain_action_time_start)*1000
                 # print("current step obtain action time used is {} milliseconds".format(generate_action_time))
@@ -638,7 +641,7 @@ def main(args):
                 if use_LSTM_flag:
                     action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
                 else:
-                    action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                    action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
                 # action = model.choose_action(cur_state, episode, noisy=False)
                 # action = env.get_actions_noCR()  # only update heading, don't update any other attribute

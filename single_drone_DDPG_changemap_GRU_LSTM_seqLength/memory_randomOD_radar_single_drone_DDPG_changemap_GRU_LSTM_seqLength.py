@@ -1,7 +1,7 @@
 from collections import namedtuple
 import random
 Experience = namedtuple('Experience',
-						('states','actions','next_states','rewards','dones','history_info','cur_hidden','next_hidden', 'rnn_hidden'))
+						('states','actions','next_states','rewards','dones','history_info','cur_hidden','next_hidden', 'lstm_hidden', 'gru_hidden'))
 
 class ReplayMemory:
 	def __init__(self,capacity, history_length):

@@ -68,27 +68,32 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
 
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
-    #
+
     # full_observable_critic_flag = True
     full_observable_critic_flag = False
 
-    use_GRU_flag = True
-    # use_GRU_flag = False
+    # use_GRU_flag = True
+    use_GRU_flag = False
 
     # use_LSTM_flag = True
     use_LSTM_flag = False
 
+    stacking = True
+    # stacking = False
+
     # use_attention_flag = True
     use_attention_flag = False
 
+    use_reached = False
+    # use_reached = True
 
     # attention_only = True
     attention_only = False
@@ -169,7 +174,7 @@ def main(args):
     torch.manual_seed(args.seed)  # this is the seed
 
     if args.algo == "maddpg":
-        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, history_seq_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only, use_LSTM_flag)
+        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, history_seq_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only, use_LSTM_flag, stacking)
     elif args.algo == 'TD3':
         model = TD3(actor_dim, critic_dim, n_actions, actor_hidden_state, history_seq_length, n_agents, args,
                        criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag)
@@ -185,6 +190,7 @@ def main(args):
     # eps_end = 3000  # at eps = eps_end, the eps value drops to the lowest value which is 0.03 (this value is fixed)
     # eps_end = 17000  # at eps = eps_end, the eps value drops to the lowest value which is 0.03 (this value is fixed)
     eps_end = 5000  # at eps = eps_end, the eps value drops to the lowest value which is 0.03 (this value is fixed)
+    # eps_end = 10000  # at eps = eps_end, the eps value drops to the lowest value which is 0.03 (this value is fixed)
     # eps_end = 2500  # at eps = eps_end, the eps value drops to the lowest value which is 0.03 (this value is fixed)
     # eps_end = 1500  # at eps = eps_end, the eps value drops to the lowest value which is 0.03 (this value is fixed)
     # eps_end = 8000  # at eps = eps_end, the eps value drops to the lowest value which is 0.03 (this value is fixed)
@@ -211,10 +217,11 @@ def main(args):
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 1000
-        args.max_episodes = 100
+        # args.max_episodes = 100
+        args.max_episodes = 500
         # args.max_episodes = 20
         # args.max_episodes = 1
-        pre_fix = r'D:\MADDPG_2nd_jp\260424_10_34_40\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\050524_13_31_29\interval_record_eps'
         episode_to_check = str(10000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
@@ -239,7 +246,7 @@ def main(args):
         # Select a random index from the list of indices
         random_map_idx = random.choice(indices)
         # random_map_idx = 3  # this value is the previous fixed environment
-        cur_state, norm_cur_state = env.reset_world(total_agentNum, random_map_idx, show=0)  # random map choose here
+        cur_state, norm_cur_state = env.reset_world(total_agentNum, random_map_idx, use_reached, show=0)  # random map choose here
         eps_reset_time_used = (time.time()-eps_reset_start_time)*1000
         # print("current episode {} reset time used is {} milliseconds".format(episode, eps_reset_time_used))  # need to + 1 here, or else will misrecord as the previous episode
         step_collision_record = [[] for _ in range(total_agentNum)]  # reset at each episode, so that we can record down collision at each step for each agent.
@@ -277,14 +284,20 @@ def main(args):
 
                 step_obtain_action_time_start = time.time()
                 # action, step_noise_val = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, gru_history, noisy=False) # noisy is false because we are using stochastic policy
-                if use_LSTM_flag:
-                    action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
-                elif use_GRU_flag:
-                    action, step_noise_val, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
-                        norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
-                        lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
-                else:
-                    action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                # if use_LSTM_flag:
+                #     action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
+                #         norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
+                #         lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                # elif use_GRU_flag:
+                #     action, step_noise_val, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
+                #         norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
+                #         lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
+                # else:
+                #     action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
+                #         norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
+                #         lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+
+                action, step_noise_val, lstm_hist, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, gru_hist, use_LSTM_flag, stacking, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
 
                 generate_action_time = (time.time() - step_obtain_action_time_start)*1000
                 # print("current step obtain action time used is {} milliseconds".format(generate_action_time))
@@ -425,14 +438,16 @@ def main(args):
                     history_tensor = torch.FloatTensor(np.array(gru_history)).to(device)
 
                     # padded_tensor = torch.nn.functional.pad(hs_tensor, pad=(0, 0, 0, 0, 0, args.episode_length), mode='constant', value=0)
-                    if use_LSTM_flag:
-                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens, lstm_hist)
-                    elif use_GRU_flag:
-                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor,
-                                          cur_actor_hiddens, next_actor_hiddens, gru_hist)
-                    else:  # here can be lstm_hist or gru_hist don't matter as when don't use lstm or gru, both lstm_hist and gru_hist equals to None
-                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor,
-                                          cur_actor_hiddens, next_actor_hiddens, lstm_hist)
+                    # if use_LSTM_flag:
+                    #     model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens, lstm_hist)
+                    # elif use_GRU_flag:
+                    #     model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor,
+                    #                       cur_actor_hiddens, next_actor_hiddens, gru_hist)
+                    # else:  # here can be lstm_hist or gru_hist don't matter as when don't use lstm or gru, both lstm_hist and gru_hist equals to None
+                    #     model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor,
+                    #                       cur_actor_hiddens, next_actor_hiddens, lstm_hist)
+                    model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor,
+                                      cur_actor_hiddens, next_actor_hiddens, lstm_hist, gru_hist)
 
                 # accum_reward = accum_reward + reward_aft_action[0]  # we just take the first agent's reward, because we are using a joint reward, so all agents obtain the same reward.
                 accum_reward = accum_reward + sum(reward_aft_action)
@@ -442,7 +457,7 @@ def main(args):
                     c_loss, a_loss, single_eps_critic_cal_record = model.update_myown_ddpg(episode, total_step,
                                                                                            UPDATE_EVERY,
                                                                                            single_eps_critic_cal_record,
-                                                                                           action, use_LSTM_flag, wandb,
+                                                                                           action, use_LSTM_flag, stacking, wandb,
                                                                                            full_observable_critic_flag,
                                                                                            use_GRU_flag)  # last working learning framework
                 elif args.algo == 'TD3':
@@ -480,7 +495,7 @@ def main(args):
                                 record_key.append(geo_fence.centroid.x)
                                 record_key.append(geo_fence.centroid.y)
                         record_key = tuple(record_key)
-                        all_OD_geo_fence_reach[record_key] = len(env.geo_fence_area)
+                        all_OD_geo_fence_reach[record_key] = [len(env.geo_fence_area), random_map_idx]
 
 
                     print("All agents have reached their destinations, {} steps used, episode terminated.".format(step))
@@ -664,11 +679,20 @@ def main(args):
                 gru_history.append(np.array(norm_cur_state[0]))
 
                 # action, step_noise_val = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, gru_history, noisy=False) # noisy is false because we are using stochastic policy
-                if use_LSTM_flag:
-                    action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
-                else:
-                    action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                # if use_LSTM_flag:
+                #     action, step_noise_val, lstm_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
+                # elif use_GRU_flag:
+                #     action, step_noise_val, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
+                #         norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
+                #         lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
+                # else:
+                #     action, step_noise_val, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
+                #         norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
+                #         lstm_hist, gru_hist, use_LSTM_flag, stacking, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
+                action, step_noise_val, lstm_hist, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
+                    norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
+                    lstm_hist, gru_hist, use_LSTM_flag, stacking, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
                 # action = model.choose_action(cur_state, episode, noisy=False)
                 # action = env.get_actions_noCR()  # only update heading, don't update any other attribute
                 # for a_idx, action_ele in enumerate(action):

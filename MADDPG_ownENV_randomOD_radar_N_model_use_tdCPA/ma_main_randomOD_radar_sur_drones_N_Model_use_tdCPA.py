@@ -13,9 +13,9 @@ import time
 import matplotlib.animation as animation
 import pickle
 import wandb
-from parameters_randomOD_radar_sur_drones_oneModel_use_tdCPA import initialize_parameters
-from maddpg_agent_randomOD_radar_sur_drones_oneModel_use_tdCPA import MADDPG
-from utils_randomOD_radar_sur_drones_oneModel_use_tdCPA import *
+from parameters_randomOD_radar_sur_drones_N_Model_use_tdCPA import initialize_parameters
+from maddpg_agent_randomOD_radar_sur_drones_N_Model_use_tdCPA import MADDPG
+from utils_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
 from copy import deepcopy
 import torch
 import matplotlib.pyplot as plt
@@ -25,7 +25,7 @@ from shapely.strtree import STRtree
 from matplotlib.markers import MarkerStyle
 import math
 from matplotlib.transforms import Affine2D
-from Utilities_own_randomOD_radar_sur_drones_oneModel_use_tdCPA import *
+from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
 from collections import deque
 import csv
 
@@ -68,8 +68,8 @@ def main(args):
     use_wanDB = False
     # use_wanDB = True
 
-    # evaluation_by_episode = True
-    evaluation_by_episode = False
+    evaluation_by_episode = True
+    # evaluation_by_episode = False
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -77,8 +77,8 @@ def main(args):
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
 
-    # full_observable_critic_flag = True
-    full_observable_critic_flag = False
+    full_observable_critic_flag = True
+    # full_observable_critic_flag = False
 
     # transfer_learning = True
     transfer_learning = False
@@ -118,9 +118,9 @@ def main(args):
     eps_start, eps_end, eps_period, eps, env, \
     agent_grid_obs, BUFFER_SIZE, BATCH_SIZE, GAMMA, TAU, UPDATE_EVERY, seed_used, max_xy = initialize_parameters()
     # total_agentNum = len(pd.read_excel(env.agentConfig))
-    # total_agentNum = 3
+    total_agentNum = 3
     # total_agentNum = 5
-    total_agentNum = 8
+    # total_agentNum = 8
     # total_agentNum = 1
     # max_nei_num = 5
     # create world
@@ -136,8 +136,8 @@ def main(args):
         # critic_dim = [8, 18, 6]
         # critic_dim = [total_agentNum*9, total_agentNum*36, 6]
         # critic_dim = [total_agentNum*(7+5), total_agentNum*18, 6]
-        # critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
-        critic_dim = [7]
+        critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+        # critic_dim = [7]
         # critic_dim = [26, 18, 6]
         # critic_dim = [ea_dim * total_agentNum for ea_dim in actor_dim]
     else:
@@ -288,10 +288,10 @@ def main(args):
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\290424_20_49_21\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\290424_20_50_44\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(40000)
+        episode_to_check = str(19000)
         # using one model, so we load all the same
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
@@ -469,33 +469,52 @@ def main(args):
                     # for elementIdx, element in enumerate(cur_state):
                         if elementIdx != len(norm_cur_state)-1:  # meaning is not the last element
                         # if elementIdx != len(cur_state)-1:  # meaning is not the last element
-                            obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                        #     obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                            obs.append(torch.from_numpy(np.stack(element)).to(device))
+                            # obs.append(np.stack(element))
                         else:
                             sur_agents = []
                             for each_agent_list in element:
-                                sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                # sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                sur_agents.append(np.squeeze(np.array(each_agent_list), axis=1))
                             obs.append(sur_agents)
 
                     for elementIdx, element in enumerate(norm_next_state):
                     # for elementIdx, element in enumerate(cur_state):
                         if elementIdx != len(norm_next_state)-1:  # meaning is not the last element
                         # if elementIdx != len(cur_state)-1:  # meaning is not the last element
-                            next_obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                        #     next_obs.append(torch.from_numpy(np.stack(element)).data.float().to(device))
+                            next_obs.append(torch.from_numpy(np.stack(element)).to(device))
+                            # next_obs.append(np.stack(element))
                         else:
                             sur_agents = []
                             for each_agent_list in element:
-                                sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                # sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)).float())
+                                sur_agents.append(torch.from_numpy(np.squeeze(np.array(each_agent_list), axis=1)))
                             next_obs.append(sur_agents)
                     # ------------------ end of store norm or non-norm state into experience replay --------------------
-                    rw_tensor = torch.FloatTensor(np.array(reward_aft_action)).to(device)
-                    ac_tensor = torch.FloatTensor(action).to(device)
-                    done_tensor = torch.FloatTensor(done_aft_action).to(device)
+                    rw_tensor = torch.tensor(np.array(reward_aft_action), device=device)
+                    # rw_tensor = np.array(reward_aft_action)
+                    # rw_tensor = torch.FloatTensor(np.array(reward_aft_action)).to(device)
+                    ac_tensor = torch.tensor(action, device=device)
+                    # ac_tensor = action
+                    # ac_tensor = torch.FloatTensor(action).to(device)
+                    if full_observable_critic_flag:
+                        eps_termination = 1.0 if any(done_aft_action) else 0.0
+                        done_tensor = torch.tensor(np.array(eps_termination), device=device)
+                    else:
+                        done_tensor = torch.tensor(np.array(done_aft_action), device=device)
+                    # done_tensor = np.array(done_aft_action)
+                    # done_tensor = torch.FloatTensor(done_aft_action).to(device)
                     # prepare hidden state information
-                    history_tensor = torch.FloatTensor(np.array(gru_history)).to(device)
+                    # history_tensor = torch.FloatTensor(np.array(gru_history)).to(device)
+                    # history_tensor = np.array(gru_history)
+                    history_tensor = torch.tensor(np.array(gru_history), device=device)
 
                     # padded_tensor = torch.nn.functional.pad(hs_tensor, pad=(0, 0, 0, 0, 0, args.episode_length), mode='constant', value=0)
                     if full_observable_critic_flag:
-                        model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
+                        # model.memory.push(obs, ac_tensor, next_obs, rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
+                        model.memory.push(obs[0], obs[1], obs[2], ac_tensor, next_obs[0], next_obs[1], next_obs[2], rw_tensor, done_tensor, history_tensor, cur_actor_hiddens, next_actor_hiddens)
                     else:
                         # ------- push to memory one by one ----------
                         # for obs and next_obs
@@ -536,7 +555,7 @@ def main(args):
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v2(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v3(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
-                # print("current step {} update time used is {} milliseconds".format(step, update_time_used))
+                print("current step {} update time used is {} milliseconds".format(step, update_time_used))
                 cur_state = next_state
                 norm_cur_state = norm_next_state
                 cur_actor_hiddens = next_actor_hiddens
@@ -749,6 +768,7 @@ def main(args):
                         crash_due_to_nearest = 0
 
                     if episode % args.save_interval == 0 and args.mode == "train":
+                    # if episode % 1 == 0 and args.mode == "train":
                         save_model = time.time()
                         # save the models at a predefined interval
                         # save model to my own directory
@@ -1085,15 +1105,15 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=20000, type=int)  # run for a total of 50000 episodes
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
     parser.add_argument('--episode_length', default=50, type=int)  # maximum play per episode
     # parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     # parser.add_argument('--memory_length', default=int(1e4), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
-    parser.add_argument('--batch_size', default=10, type=int)  # original 512
-    # parser.add_argument('--batch_size', default=512, type=int)  # original 512
+    # parser.add_argument('--batch_size', default=10, type=int)  # original 512
+    parser.add_argument('--batch_size', default=512, type=int)  # original 512
     # parser.add_argument('--batch_size', default=3, type=int)  # original 512
     # parser.add_argument('--batch_size', default=1536, type=int)  # original 512
     parser.add_argument('--render_flag', default=False, type=bool)
