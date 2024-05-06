@@ -173,7 +173,7 @@ class MADDPG:
         self.steps_done = 0
         self.episode_done = 0
 
-    def load_model(self, filePath):
+    def load_model(self, filePath, full_observable_critic_flag):
         if self.args.model_episode:
             path_flag = True
             # for idx in range(self.n_agents):
@@ -191,7 +191,10 @@ class MADDPG:
                 #     self.actors[idx].load_state_dict(actor.state_dict())
                 #     self.critics[idx].load_state_dict(critic.state_dict())
                 for path_idx, path in enumerate(filePath):
-                    self.actors.load_state_dict(torch.load(path))
+                    if full_observable_critic_flag:
+                        self.actors[path_idx].load_state_dict(torch.load(path))
+                    else:
+                        self.actors.load_state_dict(torch.load(path))
 
 
 
