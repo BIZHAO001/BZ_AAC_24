@@ -111,8 +111,11 @@ class MADDPG:
         # self.critic_optimizer = [Adam(x.parameters(), lr=0.001) for x in self.critics]
         # self.actor_optimizer = [Adam(x.parameters(), lr=0.0001) for x in self.actors]
 
-        self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr) for x in self.critics]
-        self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-4) for x in self.actors]
+        # self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-4) for x in self.critics]
+        # self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-4) for x in self.actors]
+
+        self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-5) for x in self.critics]
+        self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-5) for x in self.actors]
 
         if self.use_cuda:
             for x in self.actors:
