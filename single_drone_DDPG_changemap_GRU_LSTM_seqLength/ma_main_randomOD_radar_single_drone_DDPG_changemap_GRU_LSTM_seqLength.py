@@ -44,7 +44,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-device = torch.device('cpu')
+# device = torch.device('cpu')
 
 def main(args):
 
@@ -68,8 +68,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -80,8 +80,8 @@ def main(args):
     # full_observable_critic_flag = True
     full_observable_critic_flag = False
 
-    # use_GRU_flag = True
-    use_GRU_flag = False
+    use_GRU_flag = True
+    # use_GRU_flag = False
 
     # use_LSTM_flag = True
     use_LSTM_flag = False
@@ -217,11 +217,11 @@ def main(args):
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 1000
-        # args.max_episodes = 100
-        args.max_episodes = 500
+        args.max_episodes = 100
+        # args.max_episodes = 500
         # args.max_episodes = 20
         # args.max_episodes = 1
-        pre_fix = r'D:\MADDPG_2nd_jp\050524_16_19_49\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\060524_20_13_15\060524_20_13_15\interval_record_eps'
         episode_to_check = str(10000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
@@ -244,8 +244,8 @@ def main(args):
         # Create a list of all indices excluding 3
         indices = [i for i in range(len(env.world_map_2D_collection)) if i not in (3, 5)]
         # Select a random index from the list of indices
-        random_map_idx = random.choice(indices)
-        # random_map_idx = 3  # this value is the previous fixed environment
+        # random_map_idx = random.choice(indices)
+        random_map_idx = 3  # this value is the previous fixed environment
         cur_state, norm_cur_state = env.reset_world(total_agentNum, random_map_idx, use_reached, show=0)  # random map choose here
         eps_reset_time_used = (time.time()-eps_reset_start_time)*1000
         # print("current episode {} reset time used is {} milliseconds".format(episode, eps_reset_time_used))  # need to + 1 here, or else will misrecord as the previous episode

@@ -405,8 +405,10 @@ def main(args):
         # critic_dim = [12, 18, 6]
         # critic_dim = [26, 18, 6]
         if use_allNeigh_wRadar:
-            actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]
-            critic_dim = [9, (total_agentNum - 1) * 8, 36, 6]
+            # actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]
+            # critic_dim = [9, (total_agentNum - 1) * 8, 36, 6]
+            actor_dim = [9, (total_agentNum - 1) * 8, 18, 6]
+            critic_dim = [9, (total_agentNum - 1) * 8, 18, 6]
         else:
             # actor_dim = [10, 18, 6]  # dim host, maximum dim grid, dim other drones
             actor_dim = [9, 18, 6]  # dim host, maximum dim grid, dim other drones
@@ -481,10 +483,10 @@ def main(args):
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
         args.max_episodes = 100
         # args.max_episodes = 20
-        pre_fix = r'D:\MADDPG_2nd_jp\180424_10_07_56\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\060524_20_57_21\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(13000)
+        episode_to_check = str(20000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
         load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_agent_2actor_net.pth'
@@ -692,13 +694,13 @@ def main(args):
                 step_update_time_start = time.time()
                 c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, use_allNeigh_wRadar, wandb, full_observable_critic_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
-                print("current step {} update time used is {} milliseconds".format(step, update_time_used))
+                # print("current step {} update time used is {} milliseconds".format(step, update_time_used))
                 cur_state = next_state
                 norm_cur_state = norm_next_state
                 cur_actor_hiddens = next_actor_hiddens
                 eps_reward.append(step_reward_record)
                 whole_step_time = (time.time()-step_start_time)*1000
-                # print("current episode, one whole step time used is {} milliseconds".format(whole_step_time))
+                print("current episode, one whole step time used is {} milliseconds".format(whole_step_time))
                 step_time_breakdown.append([generate_action_time, step_transition_time, reward_generation_time,
                                             update_time_used, whole_step_time])
                 if args.episode_length < step:

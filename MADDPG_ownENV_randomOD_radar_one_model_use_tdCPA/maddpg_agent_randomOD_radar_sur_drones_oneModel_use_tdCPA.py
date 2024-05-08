@@ -71,7 +71,6 @@ class MADDPG:
         if full_observable_critic_flag:
             # self.critics = [critic_combine_TwoPortion(critic_dim, n_agents, dim_act, gru_history_length,
             #                                           actor_hidden_state_size) for _ in range(n_agents)]
-
             # one model centralized critic
             self.critics = critic_combine_TwoPortion_fullneiWradar(critic_dim, n_agents, dim_act, gru_history_length, actor_hidden_state_size, normalizer, device)
         else:

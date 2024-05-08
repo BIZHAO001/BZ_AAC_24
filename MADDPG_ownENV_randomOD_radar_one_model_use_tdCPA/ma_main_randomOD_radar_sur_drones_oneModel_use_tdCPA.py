@@ -41,7 +41,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-# device = torch.device('cpu')
+device = torch.device('cpu')
 
 
 def main(args):
@@ -68,8 +68,8 @@ def main(args):
     use_wanDB = False
     # use_wanDB = True
 
-    # evaluation_by_episode = True
-    evaluation_by_episode = False
+    evaluation_by_episode = True
+    # evaluation_by_episode = False
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -118,9 +118,9 @@ def main(args):
     eps_start, eps_end, eps_period, eps, env, \
     agent_grid_obs, BUFFER_SIZE, BATCH_SIZE, GAMMA, TAU, UPDATE_EVERY, seed_used, max_xy = initialize_parameters()
     # total_agentNum = len(pd.read_excel(env.agentConfig))
-    # total_agentNum = 3
+    total_agentNum = 3
     # total_agentNum = 5
-    total_agentNum = 8
+    # total_agentNum = 8
     # total_agentNum = 1
     # max_nei_num = 5
     # create world
@@ -288,10 +288,10 @@ def main(args):
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\290424_20_49_21\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\070524_13_36_41\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(40000)
+        episode_to_check = str(9000)
         # using one model, so we load all the same
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
@@ -542,7 +542,7 @@ def main(args):
                 cur_actor_hiddens = next_actor_hiddens
                 eps_reward.append(step_reward_record)
                 whole_step_time = (time.time()-step_start_time)*1000
-                # print("current episode, one whole step time used is {} milliseconds".format(whole_step_time))
+                print("current episode, one whole step time used is {} milliseconds".format(whole_step_time))
                 step_time_breakdown.append([generate_action_time, step_transition_time, reward_generation_time,
                                             update_time_used, whole_step_time])
                 if args.episode_length < step:
@@ -1085,15 +1085,15 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=20000, type=int)  # run for a total of 50000 episodes
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
     parser.add_argument('--episode_length', default=50, type=int)  # maximum play per episode
     # parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     # parser.add_argument('--memory_length', default=int(1e4), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
-    parser.add_argument('--batch_size', default=10, type=int)  # original 512
-    # parser.add_argument('--batch_size', default=512, type=int)  # original 512
+    # parser.add_argument('--batch_size', default=10, type=int)  # original 512
+    parser.add_argument('--batch_size', default=512, type=int)  # original 512
     # parser.add_argument('--batch_size', default=3, type=int)  # original 512
     # parser.add_argument('--batch_size', default=1536, type=int)  # original 512
     parser.add_argument('--render_flag', default=False, type=bool)

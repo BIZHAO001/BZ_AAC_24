@@ -41,7 +41,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-# device = torch.device('cpu')
+device = torch.device('cpu')  # Desktop, we must use this.
 
 
 def main(args):
@@ -65,8 +65,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    use_wanDB = False
-    # use_wanDB = True
+    # use_wanDB = False
+    use_wanDB = True
 
     evaluation_by_episode = True
     # evaluation_by_episode = False
@@ -77,8 +77,8 @@ def main(args):
     # simply_view_evaluation = True  # don't save gif
     simply_view_evaluation = False  # save gif
 
-    full_observable_critic_flag = True
-    # full_observable_critic_flag = False
+    # full_observable_critic_flag = True
+    full_observable_critic_flag = False
 
     # transfer_learning = True
     transfer_learning = False
@@ -151,14 +151,16 @@ def main(args):
             # actor_dim = [7, (total_agentNum - 1) * 6, 36, 6]
             # actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]
             # actor_dim = [9, (total_agentNum - 1) * 8, 18, 6]
-            actor_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+            # actor_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+            actor_dim = [9, (total_agentNum - 1) * 5, 18, 6]
             # actor_dim = [6, 1 * 5, 36, 6]
             # actor_dim = [6, 2 * 5, 36, 6]
             # critic_dim = [6, (total_agentNum - 1) * 5, 18, 6]
             # critic_dim = [7, (total_agentNum - 1) * 6, 36, 6]
             # critic_dim = [9, (total_agentNum - 1) * 8, 36, 6]
             # critic_dim = [9, (total_agentNum - 1) * 8, 18, 6]
-            critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+            # critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+            critic_dim = [9, (total_agentNum - 1) * 5, 18, 6]
             # critic_dim = [6, 1 * 5, 36, 6]
             # critic_dim = [6, 2 * 5, 36, 6]
         else:
@@ -288,19 +290,26 @@ def main(args):
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\290424_20_50_44\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\030524_09_06_27\030524_09_06_27\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(19000)
-        # using one model, so we load all the same
-        load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
-        load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
-        load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
-        # load_filepath_3 = pre_fix + '\episode_' + episode_to_check + '_agent_3actor_net.pth'
-        # load_filepath_4 = pre_fix + '\episode_' + episode_to_check + '_agent_4actor_net.pth'
+        episode_to_check = str(20000)
+        model_list = []
+        if full_observable_critic_flag:
+            for i in range(total_agentNum):
+                load_filepath = pre_fix + '\episode_' + episode_to_check + '_' + str(i)+ '_actor_net.pth'
+                model_list.append(load_filepath)
+            model.load_model(model_list, full_observable_critic_flag)
+        else:
+            # using one model, so we load all the same
+            load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
+            load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
+            load_filepath_2 = pre_fix + '\episode_' + episode_to_check + '_actor_net.pth'
+            # load_filepath_3 = pre_fix + '\episode_' + episode_to_check + '_agent_3actor_net.pth'
+            # load_filepath_4 = pre_fix + '\episode_' + episode_to_check + '_agent_4actor_net.pth'
 
-        # model.load_model([load_filepath_0, load_filepath_1, load_filepath_2, load_filepath_3, load_filepath_4])
-        model.load_model([load_filepath_0, load_filepath_1, load_filepath_2])
+            # model.load_model([load_filepath_0, load_filepath_1, load_filepath_2, load_filepath_3, load_filepath_4])
+            model.load_model([load_filepath_0, load_filepath_1, load_filepath_2])
     else:
         if transfer_learning:
             pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
@@ -503,6 +512,7 @@ def main(args):
                         eps_termination = 1.0 if any(done_aft_action) else 0.0
                         done_tensor = torch.tensor(np.array(eps_termination), device=device)
                     else:
+                        done_aft_action = [int(value) for value in done_aft_action]
                         done_tensor = torch.tensor(np.array(done_aft_action), device=device)
                     # done_tensor = np.array(done_aft_action)
                     # done_tensor = torch.FloatTensor(done_aft_action).to(device)
@@ -540,7 +550,9 @@ def main(args):
                         for i in range(len(one_agent_next_obs)):
                             # if done_tensor[i] == 1:
                             #     continue
-                            model.memory.push(one_agent_obs[i], ac_tensor[i, :], one_agent_next_obs[i], rw_tensor[i], done_tensor[i], history_tensor[:,i,:],
+                            # model.memory.push(one_agent_obs[i], ac_tensor[i, :], one_agent_next_obs[i], rw_tensor[i], done_tensor[i], history_tensor[:,i,:],
+                            #                   cur_actor_hiddens[i, :], next_actor_hiddens[i,:])
+                            model.memory.push(one_agent_obs[i][0], one_agent_obs[i][1], one_agent_obs[i][2], ac_tensor[i, :], one_agent_next_obs[i][0], one_agent_next_obs[i][1], one_agent_next_obs[i][2], rw_tensor[i], done_tensor[i], history_tensor[:,i,:],
                                               cur_actor_hiddens[i, :], next_actor_hiddens[i,:])
                         # ------- end of push to memory one by one ----------
 
@@ -555,7 +567,7 @@ def main(args):
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v2(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v3(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
-                print("current step {} update time used is {} milliseconds".format(step, update_time_used))
+                # print("current step {} update time used is {} milliseconds".format(step, update_time_used))
                 cur_state = next_state
                 norm_cur_state = norm_next_state
                 cur_actor_hiddens = next_actor_hiddens

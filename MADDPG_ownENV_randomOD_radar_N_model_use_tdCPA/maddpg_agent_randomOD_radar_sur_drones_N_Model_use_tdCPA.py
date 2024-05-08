@@ -16,7 +16,7 @@ import torch as T
 # from utils_randomOD_radar_sur_drones_oneModel_use_tdCPA import device
 import csv
 
-device = torch.device('cuda')
+# device = torch.device('cuda')
 
 def soft_update(target, source, t):
     for target_param, source_param in zip(target.parameters(),
@@ -349,21 +349,18 @@ class MADDPG:
                 batch = Experience(*zip(*transitions))
 
                 # stack tensors only once
-                stacked_elem_0 = torch.stack([elem[0] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
-                stacked_elem_1 = torch.stack([elem[1] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
-                stacked_elem_2 = torch.stack([elem[2] for elem in batch.states]).to(self.device).to(dtype=torch.float64)
+                stacked_elem_0 = torch.stack(batch.states_obs)
+                stacked_elem_1 = torch.stack(batch.states_nei)
+                stacked_elem_2 = torch.stack(batch.states_grid)
 
                 # for next state
-                next_stacked_elem_0 = torch.stack([elem[0] for elem in batch.next_states]).to(self.device).to(
-                    dtype=torch.float64)
-                next_stacked_elem_1 = torch.stack([elem[1] for elem in batch.next_states]).to(self.device).to(
-                    dtype=torch.float64)
-                next_stacked_elem_2 = torch.stack([elem[2] for elem in batch.next_states]).to(self.device).to(
-                    dtype=torch.float64)
+                next_stacked_elem_0 = torch.stack(batch.next_states_obs)
+                next_stacked_elem_1 = torch.stack(batch.next_states_nei)
+                next_stacked_elem_2 = torch.stack(batch.next_states_grid)
 
-                dones_stacked = torch.stack([three_agent_dones for three_agent_dones in batch.dones]).to(
-                    self.device).to(dtype=torch.float64)
-
+                dones_stacked = torch.stack(batch.dones)
+                reward_batch = torch.stack(batch.rewards)
+                action_batch = torch.stack(batch.actions)
                 non_final_next_states_actorin = [next_stacked_elem_0, next_stacked_elem_1, next_stacked_elem_2]
 
 
@@ -479,6 +476,20 @@ class MADDPG:
                 self.critic_optimizer.step()
                 # end_critic_update = (time.time() - critic_time)*1000
                 # print("time used in critic update is {} ms".format(end_critic_update))
+            else:
+                loss_Q = nn.MSELoss()(current_Q, target_Q.detach())
+                cal_loss_Q = loss_Q.clone()
+                single_eps_critic_cal_record.append([tar_Q_before_rew.detach().cpu().numpy(),
+                                                     reward_cal.detach().cpu().numpy(),
+                                                     tar_Q_after_rew.detach().cpu().numpy(),
+                                                     cal_loss_Q.detach().cpu().numpy(),
+                                                     (tar_Q_before_rew.detach().cpu().numpy().min(), tar_Q_before_rew.detach().cpu().numpy().max()),
+                                                     (reward_cal.detach().cpu().numpy().min(), reward_cal.detach().cpu().numpy().max()),
+                                                     (tar_Q_after_rew.detach().cpu().numpy().min(), tar_Q_after_rew.detach().cpu().numpy().max()),
+                                                     (cal_loss_Q.detach().cpu().numpy().min(), cal_loss_Q.detach().cpu().numpy().max())])
+                self.critic_optimizer.zero_grad()
+                loss_Q.backward()
+                self.critic_optimizer.step()
 
             if full_observable_critic_flag:
                 if isinstance(self.actors, list):
@@ -1226,10 +1237,11 @@ class MADDPG:
                 # wandb.log({'agent' + str(idx): wandb.Histogram(param.grad.cpu().detach().numpy())})
 
     def choose_action(self, state, cur_total_step, cur_episode, step, mini_noise_eps, noise_start_level, actor_hiddens, use_allNeigh_wRadar, use_selfATT_with_radar, own_obs_only, noisy=True, use_GRU_flag=False):
-        # ------------- MADDPG_test_181123_10_10_54 version noise -------------------
-        obs = torch.from_numpy(np.stack(state[0])).to(self.device)  # .float() is change from float64 ->float32
+
+        obs = torch.from_numpy(np.stack(state[0])).to(self.device)
         obs_full_nei = torch.from_numpy(np.stack(state[1])).to(self.device)
         obs_grid = torch.from_numpy(np.stack(state[2])).to(self.device)
+
         noise_value = np.zeros(2)
 
         # if len(gru_history) < self.args.gru_history_length:
