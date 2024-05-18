@@ -20,7 +20,7 @@ from scipy.spatial import KDTree
 import random
 import itertools
 from copy import deepcopy
-from agent_randomOD_radar_sur_drones_N_Model_use_tdCPA import Agent
+from agent_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2 import Agent
 import pandas as pd
 import math
 import numpy as np
@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import re
 import time
-from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
+from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2 import *
 import torch as T
 import torch
 import torch.nn.functional as F
@@ -3022,16 +3022,6 @@ class env_simulator:
         y_top_bound = LineString([(-9999, self.bound[3]), (9999, self.bound[3])])
         dist_to_goal = 0  # initialize
         for drone_idx, drone_obj in self.all_agents.items():
-            host_current_circle = Point(self.all_agents[drone_idx].pos[0], self.all_agents[drone_idx].pos[1]).buffer(
-                self.all_agents[drone_idx].protectiveBound)
-            tar_circle = Point(self.all_agents[drone_idx].goal[-1]).buffer(1, cap_style='round')
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', category=RuntimeWarning)
-                goal_cur_intru_intersect = host_current_circle.intersection(tar_circle)
-            if not goal_cur_intru_intersect.is_empty:
-                drone_obj.reach_target = True
-
-        for drone_idx, drone_obj in self.all_agents.items():
             if xy[0] is not None and xy[1] is not None and drone_idx > 0:
                 continue
             if xy[0] is not None and xy[1] is not None:
@@ -3134,9 +3124,6 @@ class env_simulator:
                 euclidean_dist_diff = np.linalg.norm(diff_dist_vec)
                 all_neigh_dist.append(euclidean_dist_diff)
 
-                if self.all_agents[neigh_keys].reach_target == True:
-                    euclidean_dist_diff = math.inf
-
                 if euclidean_dist_diff < shortest_neigh_dist:
                     shortest_neigh_dist = euclidean_dist_diff
                     neigh_relative_bearing = calculate_bearing(drone_obj.pos[0], drone_obj.pos[1],
@@ -3158,15 +3145,12 @@ class env_simulator:
                             drone_obj.drone_collision = True
                             self.all_agents[neigh_keys].drone_collision = True
                     else:
-                        if self.all_agents[neigh_keys].reach_target == True:
-                            pass
-                        else:
-                            print("host drone_{} collide with drone_{} at time step {}".format(drone_idx, neigh_keys, current_ts))
-                            neigh_collision_bearing = calculate_bearing(drone_obj.pos[0], drone_obj.pos[1],
-                                                                       self.all_agents[neigh_keys].pos[0],
-                                                                       self.all_agents[neigh_keys].pos[1])
-                            collision_drones.append(neigh_keys)
-                            drone_obj.drone_collision = True
+                        print("host drone_{} collide with drone_{} at time step {}".format(drone_idx, neigh_keys, current_ts))
+                        neigh_collision_bearing = calculate_bearing(drone_obj.pos[0], drone_obj.pos[1],
+                                                                   self.all_agents[neigh_keys].pos[0],
+                                                                   self.all_agents[neigh_keys].pos[1])
+                        collision_drones.append(neigh_keys)
+                        drone_obj.drone_collision = True
             # loop over all previous step neighbour, check if the collision at current step, is done by the drones that is previous within the closest two neighbors
             neigh_count = 0
             flag_previous_nearest_two = 0
@@ -3768,18 +3752,15 @@ class env_simulator:
             #print("At time step {} the drone_{}'s output speed is {}".format(current_ts, drone_idx, np.linalg.norm(self.all_agents[drone_idx].vel)))
 
             # update the drone's position based on the update velocities
-            if drone_obj.reach_target == True:
-                delta_x = 0
-                delta_y = 0
-            else:
-                delta_x = self.all_agents[drone_idx].vel[0] * self.time_step
-                delta_y = self.all_agents[drone_idx].vel[1] * self.time_step
+            delta_x = self.all_agents[drone_idx].vel[0] * self.time_step
+            delta_y = self.all_agents[drone_idx].vel[1] * self.time_step
 
             # update current acceleration of the agent after an action
             self.all_agents[drone_idx].acc = np.array([ax, ay])
 
             counterCheck_heading = math.atan2(delta_y, delta_x)
-
+            if abs(next_heading - counterCheck_heading) > 1e-3 :
+                print("debug, heading different")
             self.all_agents[drone_idx].heading = counterCheck_heading
             # ------------- end of acceleration in x and acceleration in y state transition control ---------------#
 

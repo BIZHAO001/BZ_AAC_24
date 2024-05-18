@@ -16,6 +16,323 @@ import matplotlib.pyplot as plt
 from shapely.strtree import STRtree
 from shapely.geometry import LineString, Point, Polygon
 import matplotlib.colors as colors
+from shapely.ops import nearest_points
+from matplotlib.transforms import Affine2D
+import matplotlib.animation as animation
+from openpyxl import load_workbook
+from openpyxl import Workbook
+from matplotlib.markers import MarkerStyle
+import math
+
+
+# def radar_capture_obsgrid_centre():
+
+
+def calculate_bearing(x_host, y_host, x_intruder, y_intruder):
+    delta_x = x_intruder - x_host
+    delta_y = y_intruder - y_host
+
+    theta_radians = math.atan2(delta_y, delta_x)
+    theta_degrees = math.degrees(theta_radians)
+
+    # Convert to bearing as specified
+    if theta_degrees < 0:
+        bearing = -theta_degrees
+    else:
+        bearing = 360 - theta_degrees
+
+    return bearing
+
+def initialize_excel_file(file_path):
+    # Create a new workbook and add three empty sheets
+    wb = Workbook()
+    wb.save(file_path)
+
+
+def append_to_excel(file_path, data):
+    # Try to load the workbook, and create it if it does not exist
+    try:
+        wb = load_workbook(file_path)
+        new_workbook = False
+    except FileNotFoundError:
+        wb = Workbook()
+        new_workbook = True
+        # wb.remove(wb.active)  # Remove the default sheet created by openpyxl if not need
+    except Exception as e:  # Catch other exceptions, such as invalid file format
+        print(f"An error occurred: {e}")
+        return
+    if new_workbook:
+        if 'Sheet' in wb.sheetnames:
+            # If the sheet exists, remove it
+            wb.remove('Sheet')
+    # Check if the required sheets exist, if not create them
+    if len(data) == 3:  # for record eps time
+        number_of_sheets = len(data)
+        required_sheets = ['Sheet'+str(i) for i in range(number_of_sheets)]
+        for sheet_name in required_sheets:
+            if sheet_name not in wb.sheetnames:
+                wb.create_sheet(title=sheet_name)
+
+        # Append the data to the respective sheets
+        for i, portion in enumerate(data):
+            sheet = wb[required_sheets[i]]
+            if isinstance(portion, list):
+                for item in portion:
+                    sheet.append(item if isinstance(item, list) else [item])
+                # If this is the last portion of data, append -1 to the last row
+                if i == len(data) - 1:
+                    sheet.append([-1])
+            else:
+                sheet.append([portion])
+    else:
+        if isinstance(data[0], list):  # for record reward
+            # In reward record, we are recording in the form that one step have 3 agents
+            required_sheets = ["agent0", "agent1", "agent2"]
+            for sheet_name in required_sheets:
+                if sheet_name not in wb.sheetnames:
+                    wb.create_sheet(title=sheet_name)
+            for idx, step_reward in enumerate(data):
+                for agent_idx, single_sheet_name in enumerate(required_sheets):
+                    sheet = wb[single_sheet_name]
+                    sheet.append(step_reward[agent_idx])
+                    if idx == len(data)-1:
+                        sheet.append([-9999])
+
+        else:  # for record noise
+            wb.create_sheet(title='noise given at each step')
+            sheet = wb['noise given at each step']
+            for i, portion in enumerate(data):
+                sheet.append(list(portion))
+            sheet.append([-999])
+
+    # Save the workbook
+    wb.save(file_path)
+
+
+def animate(frame_num, ax, env, trajectory_eachPlay):
+    ax.clear()
+    plt.axis('equal')
+    plt.xlim(env.bound[0], env.bound[1])
+    plt.ylim(env.bound[2], env.bound[3])
+    plt.axvline(x=env.bound[0], c="green")
+    plt.axvline(x=env.bound[1], c="green")
+    plt.axhline(y=env.bound[2], c="green")
+    plt.axhline(y=env.bound[3], c="green")
+    plt.xlabel("X axis")
+    plt.ylabel("Y axis")
+
+    # draw occupied_poly
+    for one_poly in env.world_map_2D_polyList[0][0]:
+        one_poly_mat = shapelypoly_to_matpoly(one_poly, True, 'y', 'b')
+        ax.add_patch(one_poly_mat)
+    # draw non-occupied_poly
+    for zero_poly in env.world_map_2D_polyList[0][1]:
+        zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
+        # ax.add_patch(zero_poly_mat)
+
+    # show building obstacles
+    for poly in env.buildingPolygons:
+        matp_poly = shapelypoly_to_matpoly(poly, False, 'red')  # the 3rd parameter is the edge color
+        ax.add_patch(matp_poly)
+
+    for agentIdx, agent in env.all_agents.items():
+        plt.plot(agent.ini_pos[0], agent.ini_pos[1],
+                 marker=MarkerStyle(">",
+                                    fillstyle="right",
+                                    transform=Affine2D().rotate_deg(math.degrees(agent.heading))),
+                 color='y')
+        plt.text(agent.ini_pos[0], agent.ini_pos[1], agent.agent_name)
+        plt.plot(agent.goal[-1][0], agent.goal[-1][1], marker='*', color='y', markersize=10)
+        plt.text(agent.goal[-1][0], agent.goal[-1][1], agent.agent_name)
+
+        # link individual drone's starting position with its goal
+        ini = agent.ini_pos
+        # for wp in agent.goal:
+        for wp in agent.ref_line.coords:
+            # plt.plot(wp[0], wp[1], marker='*', color='y', markersize=10)
+            plt.plot([wp[0], ini[0]], [wp[1], ini[1]], '--', color='c')
+            ini = wp
+
+    for a_idx, agent in enumerate(trajectory_eachPlay[frame_num]):
+        x, y = agent[0], agent[1]
+        plt.plot(x, y, 'o', color='r')
+
+        # plt.text(x-1, y-1, 'agent_'+str(a_idx)+'_'+str(round(float(frame_num), 2)))
+        plt.text(x-1, y-1, 'agent_'+str(a_idx)+'_'+str(agent[2]))
+
+        self_circle = Point(x, y).buffer(env.all_agents[0].protectiveBound, cap_style='round')
+        grid_mat_Scir = shapelypoly_to_matpoly(self_circle, False, 'k')
+        ax.add_patch(grid_mat_Scir)
+
+    return ax.patches + [ax.texts]
+
+
+def get_history_tensor(history, sequence_length, input_size):
+    # If history is shorter than the sequence length, pad it with zeros
+    if len(history) < sequence_length:
+        padding = torch.zeros(sequence_length - len(history), input_size)
+        history_tensor = torch.cat((padding, torch.stack(list(history))))
+    else:
+        history_tensor = torch.stack(list(history))
+
+    # Add a batch dimension and return
+    return history_tensor.unsqueeze(0)
+
+
+def save_gif(env, trajectory_eachPlay, pre_fix, episode_to_check, episode):
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    matplotlib.use('TkAgg')
+    fig, ax = plt.subplots(1, 1)
+
+    plt.axis('equal')
+    plt.xlim(env.bound[0], env.bound[1])
+    plt.ylim(env.bound[2], env.bound[3])
+    plt.axvline(x=env.bound[0], c="green")
+    plt.axvline(x=env.bound[1], c="green")
+    plt.axhline(y=env.bound[2], c="green")
+    plt.axhline(y=env.bound[3], c="green")
+    plt.xlabel("X axis")
+    plt.ylabel("Y axis")
+
+    # draw occupied_poly
+    for one_poly in env.world_map_2D_polyList[0][0]:
+        one_poly_mat = shapelypoly_to_matpoly(one_poly, True, 'y', 'b')
+        ax.add_patch(one_poly_mat)
+    # draw non-occupied_poly
+    for zero_poly in env.world_map_2D_polyList[0][1]:
+        zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
+        # ax.add_patch(zero_poly_mat)
+
+    # show building obstacles
+    for poly in env.buildingPolygons:
+        matp_poly = shapelypoly_to_matpoly(poly, False, 'red')  # the 3rd parameter is the edge color
+        ax.add_patch(matp_poly)
+
+    for agentIdx, agent in env.all_agents.items():
+        plt.plot(agent.ini_pos[0], agent.ini_pos[1],
+                 marker=MarkerStyle(">",
+                                    fillstyle="right",
+                                    transform=Affine2D().rotate_deg(math.degrees(agent.heading))),
+                 color='y')
+        plt.text(agent.ini_pos[0], agent.ini_pos[1], agent.agent_name)
+        # plot self_circle of the drone
+        self_circle = Point(agent.ini_pos[0],
+                            agent.ini_pos[1]).buffer(agent.protectiveBound, cap_style='round')
+        grid_mat_Scir = shapelypoly_to_matpoly(self_circle, inFill=False, Edgecolor='k')
+        ax.add_patch(grid_mat_Scir)
+
+        # plot drone's detection range
+        detec_circle = Point(agent.ini_pos[0],
+                             agent.ini_pos[1]).buffer(agent.detectionRange / 2, cap_style='round')
+        detec_circle_mat = shapelypoly_to_matpoly(detec_circle, inFill=False, Edgecolor='g')
+        ax.add_patch(detec_circle_mat)
+
+        plt.plot(agent.goal[-1][0], agent.goal[-1][1], marker='*', color='y', markersize=10)
+        plt.text(agent.goal[-1][0], agent.goal[-1][1], agent.agent_name)
+
+    # Create animation
+    ani = animation.FuncAnimation(fig, animate, fargs=(ax, env, trajectory_eachPlay), frames=len(trajectory_eachPlay),
+                                  interval=300, blit=False)
+    # Save as GIF
+    gif_path = pre_fix + '\episode_' + episode_to_check + 'simulation_num_' + str(episode) + '.gif'
+    ani.save(gif_path, writer='pillow')
+
+    # Close figure
+    plt.close(fig)
+
+
+def view_static_traj(env, trajectory_eachPlay):
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    matplotlib.use('TkAgg')
+    fig, ax = plt.subplots(1, 1)
+    # display initial condition
+    # global_state = env.reset_world(show=0)  # just a dummy to reset all condition so that initial condition can be added to the output graph
+    for agentIdx, agent in env.all_agents.items():
+        # if agentIdx != 0:
+        #     continue
+        plt.plot(agent.ini_pos[0], agent.ini_pos[1],
+                 marker=MarkerStyle(">",
+                                    fillstyle="right",
+                                    transform=Affine2D().rotate_deg(math.degrees(agent.heading))),
+                 color='y')
+        plt.text(agent.ini_pos[0], agent.ini_pos[1], agent.agent_name)
+        # plot self_circle of the drone
+        self_circle = Point(agent.ini_pos[0],
+                            agent.ini_pos[1]).buffer(agent.protectiveBound, cap_style='round')
+        grid_mat_Scir = shapelypoly_to_matpoly(self_circle, inFill=False, Edgecolor='k')
+        ax.add_patch(grid_mat_Scir)
+
+        # plot drone's detection range
+        detec_circle = Point(agent.ini_pos[0],
+                             agent.ini_pos[1]).buffer(agent.detectionRange / 2, cap_style='round')
+        detec_circle_mat = shapelypoly_to_matpoly(detec_circle, inFill=False, Edgecolor='g')
+        # ax.add_patch(detec_circle_mat)
+
+        # link individual drone's starting position with its goal
+        ini = agent.ini_pos
+        # for wp in agent.goal:
+        for wp in agent.ref_line.coords:
+            plt.plot(wp[0], wp[1], marker='*', color='y', markersize=10)
+            plt.plot([wp[0], ini[0]], [wp[1], ini[1]], '--', color='c')
+            # plot drone's detection range
+            wp_circle = Point(wp[0], wp[1]).buffer(agent.protectiveBound, cap_style='round')
+            wp_circle_mat = shapelypoly_to_matpoly(wp_circle, inFill=False, Edgecolor='g')
+            ax.add_patch(wp_circle_mat)
+            ini = wp
+
+        plt.plot(agent.goal[-1][0], agent.goal[-1][1], marker='*', color='y', markersize=10)
+        plt.text(agent.goal[-1][0], agent.goal[-1][1], agent.agent_name)
+
+    # draw trajectory in current episode
+    frame_to_show = [len(trajectory_eachPlay)-1, len(trajectory_eachPlay)-2, len(trajectory_eachPlay)-3]
+    for trajectory_idx, trajectory_val in enumerate(trajectory_eachPlay):  # each time step
+        # if trajectory_idx != len(trajectory_eachPlay)-1 or \
+        #         trajectory_idx != len(trajectory_eachPlay)-2 or \
+        #         trajectory_idx != len(trajectory_eachPlay)-3:  # only show last frame
+        #     continue
+        if trajectory_idx not in frame_to_show:
+            continue
+        for agentIDX, each_agent_traj in enumerate(trajectory_val):  # for each agent's motion in a time step
+            # if agentIDX != 0:
+            #     continue
+            x, y = each_agent_traj[0], each_agent_traj[1]
+            plt.plot(x, y, 'o', color='r')
+
+            # plt.text(x-1, y-1, str(round(float(reward_each_agent[trajectory_idx][agentIDX]),2)))
+            plt.text(x - 1, y - 1, 'A' + str(agentIDX) + '_' + 'step'+str(trajectory_idx) + '_' +
+                     'GL_'+str(each_agent_traj[3]['goal_leading_reward'].round(3)) +
+                     'BP_'+str(each_agent_traj[3]['near_building_penalty'].round(3)) +
+                     'DP_'+str(each_agent_traj[3]['near_drone_penalty'].round(3)) + 'sum_'+str(each_agent_traj[2]))
+            # plt.text(x - 1, y - 1, 'agent_' + str(agentIDX) + '_' + str(each_agent_traj[2]))
+            self_circle = Point(x, y).buffer(env.all_agents[0].protectiveBound, cap_style='round')
+            grid_mat_Scir = shapelypoly_to_matpoly(self_circle, False, 'k')
+            ax.add_patch(grid_mat_Scir)
+
+    # draw occupied_poly
+    for one_poly in env.world_map_2D_polyList[0][0]:
+        one_poly_mat = shapelypoly_to_matpoly(one_poly, True, 'y', 'b')
+        ax.add_patch(one_poly_mat)
+    # draw non-occupied_poly
+    for zero_poly in env.world_map_2D_polyList[0][1]:
+        zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
+        # ax.add_patch(zero_poly_mat)
+
+    # show building obstacles
+    for poly in env.buildingPolygons:
+        matp_poly = shapelypoly_to_matpoly(poly, False, 'red')  # the 3rd parameter is the edge color
+        ax.add_patch(matp_poly)
+
+    plt.axis('equal')
+    plt.xlim(env.bound[0], env.bound[1])
+    plt.ylim(env.bound[2], env.bound[3])
+    plt.axvline(x=env.bound[0], c="green")
+    plt.axvline(x=env.bound[1], c="green")
+    plt.axhline(y=env.bound[2], c="green")
+    plt.axhline(y=env.bound[3], c="green")
+    plt.xlabel("X axis")
+    plt.ylabel("Y axis")
+    plt.show()
+
 
 def compute_t_cpa_d_cpa_potential_col(other_pos, host_pos, other_vel, host_vel, other_bound, host_bound, total_possible_conf):
     rel_dist_withNeg = -1 * (other_pos - host_pos)  # relative distance, host-intru
@@ -40,6 +357,45 @@ def compute_t_cpa_d_cpa_potential_col(other_pos, host_pos, other_vel, host_vel, 
         total_possible_conf = total_possible_conf + 1
     return (tcpa, d_tcpa, total_possible_conf)
 
+
+def compute_projected_velocity(vehicle_velocity, reference_path, vehicle_position):
+    # Find the closest point on the path to the vehicle's current position
+    closest_point = nearest_points(reference_path, vehicle_position)[0]
+    # Check if the closest point is a turning point
+    turning_points = [Point(p) for p in reference_path.coords[1:-1]]  # Exclude the first and last points
+    # If closest_point is a turning point, use the outgoing path segment for tangent calculation
+    if closest_point in turning_points:
+        # Find the index of the turning point in the list of points
+        turning_index = turning_points.index(closest_point)
+
+        # The outgoing segment starts from the turning point
+        segment_start = np.array(reference_path.coords[turning_index + 1])
+        segment_end = np.array(reference_path.coords[turning_index + 2])
+
+        # Calculate the tangent vector (unit vector) of the segment
+        tangent_vector = (segment_end - segment_start) / np.linalg.norm(segment_end - segment_start)
+
+        # Project the vehicle's velocity onto the tangent vector
+        projected_velocity = np.dot(vehicle_velocity, tangent_vector) * tangent_vector
+    else:
+        # If it's not a turning point, just find the index of the closest segment
+        distance_along_line = reference_path.project(closest_point)
+        # Find the segment that contains this distance
+        cumulative_distance = 0
+        for i in range(len(reference_path.coords) - 1):
+            segment_start = np.array(reference_path.coords[i])
+            segment_end = np.array(reference_path.coords[i + 1])
+            segment_length = LineString([segment_start, segment_end]).length
+            cumulative_distance += segment_length
+            if cumulative_distance > distance_along_line:
+                break
+        # Compute the tangent vector as before
+        tangent_vector = (segment_end - segment_start) / np.linalg.norm(segment_end - segment_start)
+        # Project the vehicle's velocity onto the tangent vector
+        projected_velocity = np.dot(vehicle_velocity, tangent_vector) * tangent_vector
+    return projected_velocity
+
+
 def find_index_of_min_first_element(lst):
     # Initialize the index and the minimum value
     min_index = 0
@@ -52,6 +408,7 @@ def find_index_of_min_first_element(lst):
             min_index = i
 
     return min_index
+
 
 def total_length_to_end_of_line(initial_point, linestring):
     """
@@ -82,6 +439,32 @@ def total_length_to_end_of_line(initial_point, linestring):
     total_distance = distance_to_line + distance_to_end_of_line
 
     return total_distance
+
+
+def total_length_to_end_of_line_without_cross(initial_point, linestring):
+    """
+    Calculate the total distance from an initial point to the nearest point on the line and
+    from there to the end of the line.
+
+    Parameters:
+    initial_point (tuple): The initial point as (x, y).
+    linestring (LineString): The LineString object.
+
+    Returns:
+    float: The total distance from the initial point to the end of the LineString.
+    """
+    # Create a Point object from the tuple
+    point = Point(initial_point)
+
+    # Find the nearest point on the line to the initial point
+    nearest_point_on_line = linestring.interpolate(linestring.project(point))
+
+    # Calculate the distance from the nearest point on the line to the end of the line
+    projected_distance = linestring.project(nearest_point_on_line)
+    distance_to_end_of_line = linestring.length - projected_distance
+
+    return distance_to_end_of_line
+
 
 def sort_polygons(polygons):  # this sorting is left to right, but bottom to top. so, 0th is below 2nd. [[2,3],[0,1]]
     boxes = [polygon.bounds for polygon in polygons]
@@ -277,7 +660,6 @@ def ornstein_uhlenbeck_unscaled(
         last_noise = noise
         yield noise
 
-
 class NormalizeData:
     def __init__(self, x_min_max, y_min_max, spd_max, acc_range):
         self.normalize_max = 1
@@ -300,6 +682,12 @@ class NormalizeData:
         x_normalized = 2 * ((x - self.dis_min_x) / (self.dis_max_x - self.dis_min_x)) - 1
         y_normalized = 2 * ((y - self.dis_min_y) / (self.dis_max_y - self.dis_min_y)) - 1
         return np.array([x_normalized, y_normalized])
+
+    def reverse_nmlz_pos(self, norm_pos_c):
+        norm_x, norm_y = norm_pos_c[0], norm_pos_c[1]
+        x = ((norm_x+1) / 2) * (self.dis_max_x - self.dis_min_x) + self.dis_min_x
+        y = ((norm_y+1) / 2) * (self.dis_max_y - self.dis_min_y) + self.dis_min_y
+        return np.array([x, y])
 
     def scale_pos(self, pos_c):  # NOTE: this method is essentially same as min-max normalize approach, but we need this appraoch to calculate x & y scale
         x_normalized = self.normalize_min + (pos_c[0] - self.dis_min_x) * self.x_scale
@@ -327,11 +715,19 @@ class NormalizeData:
         # vy_normalized = (vy / self.spd_max) * 2 - 1
         return np.array([vx_normalized, vy_normalized])
 
+    def reverse_nmlz_vel(self, norm_vel):
+        norm_vx, norm_vy = norm_vel[0], norm_vel[1]
+        vx = norm_vx * self.spd_max
+        vy = norm_vy * self.spd_max
+        return np.array([vx, vy])
+
     def nmlz_acc(self, cur_acc):
         ax, ay = cur_acc[0], cur_acc[1]
-        ax_normalized = ((ax - self.acc_min) / (self.acc_max-self.acc_min)) * 2 - 1
-        ay_normalized = (ay - self.acc_min) / (self.acc_max-self.acc_min) * 2 - 1
-        return ax_normalized, ay_normalized
+        # ax_normalized = ((ax - self.acc_min) / (self.acc_max-self.acc_min)) * 2 - 1
+        # ay_normalized = (ay - self.acc_min) / (self.acc_max-self.acc_min) * 2 - 1
+        ax_normalized = ax / self.acc_max
+        ay_normalized = ay / self.acc_max
+        return np.array([ax_normalized, ay_normalized])
 
 
 def BetaNoise(action, noise_scale):

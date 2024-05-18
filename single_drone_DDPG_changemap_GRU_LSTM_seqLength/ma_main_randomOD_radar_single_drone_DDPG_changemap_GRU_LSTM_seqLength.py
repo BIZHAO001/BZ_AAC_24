@@ -44,7 +44,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-# device = torch.device('cpu')
+device = torch.device('cpu')
 
 def main(args):
 
@@ -68,8 +68,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    use_wanDB = False
-    # use_wanDB = True
+    # use_wanDB = False
+    use_wanDB = True
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -80,8 +80,8 @@ def main(args):
     # full_observable_critic_flag = True
     full_observable_critic_flag = False
 
-    use_GRU_flag = True
-    # use_GRU_flag = False
+    # use_GRU_flag = True
+    use_GRU_flag = False
 
     # use_LSTM_flag = True
     use_LSTM_flag = False
@@ -97,6 +97,9 @@ def main(args):
 
     # attention_only = True
     attention_only = False
+
+    feature_matching = True
+    # feature_matching = False
 
     if use_wanDB:
         wandb.login(key="efb76db851374f93228250eda60639c70a93d1ec")
@@ -174,7 +177,7 @@ def main(args):
     torch.manual_seed(args.seed)  # this is the seed
 
     if args.algo == "maddpg":
-        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, history_seq_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only, use_LSTM_flag, stacking)
+        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, history_seq_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_attention_flag, attention_only, use_LSTM_flag, stacking, feature_matching)
     elif args.algo == 'TD3':
         model = TD3(actor_dim, critic_dim, n_actions, actor_hidden_state, history_seq_length, n_agents, args,
                        criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag)
@@ -212,16 +215,18 @@ def main(args):
     goal_reached = 0
     goal_reach_history.append(goal_reached)
     episode_goal_found = [False] * n_agents
+    num_geo_fence_created = []
     dummy_xy = (None, None)  # this is a dummy tuple of xy, is not useful during normal training, it is only useful when generating reward map
     if args.mode == "eval":
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 1000
-        args.max_episodes = 100
+        args.max_episodes = 1000
         # args.max_episodes = 500
         # args.max_episodes = 20
         # args.max_episodes = 1
-        pre_fix = r'D:\MADDPG_2nd_jp\060524_20_13_15\060524_20_13_15\interval_record_eps'
+        episode_situation_holder = [None] * args.max_episodes
+        pre_fix = r'D:\MADDPG_2nd_jp\130524_20_25_36\interval_record_eps'
         episode_to_check = str(10000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
@@ -244,13 +249,14 @@ def main(args):
         # Create a list of all indices excluding 3
         indices = [i for i in range(len(env.world_map_2D_collection)) if i not in (3, 5)]
         # Select a random index from the list of indices
-        # random_map_idx = random.choice(indices)
-        random_map_idx = 3  # this value is the previous fixed environment
-        cur_state, norm_cur_state = env.reset_world(total_agentNum, random_map_idx, use_reached, show=0)  # random map choose here
+        random_map_idx = random.choice(indices)
+        # random_map_idx = 3  # this value is the previous fixed environment
+        cur_state, norm_cur_state = env.reset_world(total_agentNum, random_map_idx, use_reached, args, show=0)  # random map choose here
+
         eps_reset_time_used = (time.time()-eps_reset_start_time)*1000
         # print("current episode {} reset time used is {} milliseconds".format(episode, eps_reset_time_used))  # need to + 1 here, or else will misrecord as the previous episode
         step_collision_record = [[] for _ in range(total_agentNum)]  # reset at each episode, so that we can record down collision at each step for each agent.
-
+        num_geo_fence_created.append(len(env.geo_fence_area))
         episode_decision = [False] * 3
         agents_added = []
         eps_reward = []
@@ -267,6 +273,7 @@ def main(args):
         agent_added = 0  # this is an initialization for each new episode
         accum_reward = 0
         trajectory_eachPlay = []
+
         lstm_hist = None
         gru_hist = None
 
@@ -297,7 +304,7 @@ def main(args):
                 #         norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
                 #         lstm_hist, gru_hist, use_LSTM_flag, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
-                action, step_noise_val, lstm_hist, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, gru_hist, use_LSTM_flag, stacking, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
+                action, step_noise_val, lstm_hist, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(env.OU_noise, norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, gru_hist, use_LSTM_flag, stacking, feature_matching, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
 
                 generate_action_time = (time.time() - step_obtain_action_time_start)*1000
                 # print("current step obtain action time used is {} milliseconds".format(generate_action_time))
@@ -401,7 +408,6 @@ def main(args):
                 step += 1  # current play step
                 total_step += 1  # steps taken from 1st episode
                 eps_noise.append(step_noise_val)
-                traj_step_list = []
                 trajectory_eachPlay.append([[each_agent_traj[0], each_agent_traj[1], reward_aft_action[each_agent_idx],
                                              eps_status_holder[each_agent_idx]] for each_agent_idx, each_agent_traj in
                                             enumerate(cur_state[0])])
@@ -457,7 +463,7 @@ def main(args):
                     c_loss, a_loss, single_eps_critic_cal_record = model.update_myown_ddpg(episode, total_step,
                                                                                            UPDATE_EVERY,
                                                                                            single_eps_critic_cal_record,
-                                                                                           action, use_LSTM_flag, stacking, wandb,
+                                                                                           action, use_LSTM_flag, stacking, feature_matching, wandb,
                                                                                            full_observable_critic_flag,
                                                                                            use_GRU_flag)  # last working learning framework
                 elif args.algo == 'TD3':
@@ -941,7 +947,8 @@ def main(args):
                             # print("near goal reward is {}".format(step_reward_decomposition[6]))
                             # print("current spd is {} m/s, curent spd penalty is {}". format(step_reward_decomposition[5], step_reward_decomposition[4]))
                     print("[Episode %05d] reward %6.4f " % (episode, accum_reward))
-
+                    if args.mode == "eval":
+                        episode_situation_holder[episode-1] = trajectory_eachPlay
                     if get_evaluation_status:
                         if simply_view_evaluation:
                         # ------------------ static display trajectory ---------------------------- #
@@ -1013,7 +1020,11 @@ def main(args):
         # record the reached OD and geo-fence area
         with open(plot_file_name + '/reached_OD_wGeo_fence.pickle', 'wb') as handle:
             pickle.dump(all_OD_geo_fence_reach, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(plot_file_name + '/geo_fence_number_perEps.pickle', 'wb') as handle:
+            pickle.dump(num_geo_fence_created, handle, protocol=pickle.HIGHEST_PROTOCOL)
     else:
+        # with open('GRU_7G_110524_16_13_03.pickle', 'wb') as handle:
+        #     pickle.dump(episode_situation_holder, handle, protocol=pickle.HIGHEST_PROTOCOL)
         print("total collision count is {}".format(collision_count))
         print("Collision due to bound is {}".format(crash_to_bound))
         print("Collision due to building is {}".format(crash_to_building))
@@ -1022,6 +1033,9 @@ def main(args):
         print("Two goal reached count is {}".format(two_drone_reach))
         print("All goal reached count is {}".format(all_drone_reach))
     print(f'training finishes, time spent: {datetime.timedelta(seconds=int(time.time() - training_start_time))}')
+    if args.mode == 'train':
+        with open(plot_file_name + '/all_episode_reward.pickle', 'wb') as handle:
+            pickle.dump(eps_reward_record, handle, protocol=pickle.HIGHEST_PROTOCOL)
     if use_wanDB:
         wandb.finish()
 
