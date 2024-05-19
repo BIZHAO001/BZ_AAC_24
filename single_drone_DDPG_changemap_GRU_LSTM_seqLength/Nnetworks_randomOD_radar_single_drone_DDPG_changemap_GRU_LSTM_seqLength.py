@@ -940,7 +940,7 @@ class GRU_batch_actor_TwoPortion(nn.Module):
 class GRU_batch_actor_TwoPortionFM(nn.Module):
     def __init__(self, actor_dim, n_actions, actor_hidden_state_size):
         super(GRU_batch_actor_TwoPortionFM, self).__init__()
-        # new V4
+        self.randomLayer = RandomNetwork(actor_dim)
         self.rnn_hidden_dim = actor_hidden_state_size
         self.own_fc = nn.Sequential(nn.Linear(actor_dim[0] + actor_dim[1], 64), nn.ReLU())
         self.gru = nn.GRU(64, actor_hidden_state_size, batch_first=True)
@@ -948,14 +948,17 @@ class GRU_batch_actor_TwoPortionFM(nn.Module):
                                     nn.Linear(128, 128), nn.ReLU(),
                                     nn.Linear(64 + 64, n_actions), nn.Tanh())
 
-    # new V3
-    def forward(self, cur_state, history_hidden_state, target_act_flag=0, dones_stacked=None):
+    def forward(self, cur_state, history_hidden_state, target_act_flag=0, dones_stacked=None, use_random=False):
         combine_obs = torch.cat((cur_state[0], cur_state[1]), dim=2)
+        if use_random:
+            obs_grid_input = self.randomLayer(combine_obs)
+        else:
+            obs_grid_input = combine_obs
         stacked_hidden = history_hidden_state
         seq_length = stacked_hidden.shape[2]
         # rnn_input = combine_obs  # this is for V3
         # The two lines below, it is for V3.1
-        combine_obs_feat = self.own_fc(combine_obs)
+        combine_obs_feat = self.own_fc(obs_grid_input)
         rnn_input = combine_obs_feat
 
         if len(stacked_hidden.shape) == 3:
@@ -990,7 +993,7 @@ class GRU_batch_actor_TwoPortionFM(nn.Module):
         merge_obs_H_grid = torch.flatten(rnn_output, start_dim=0, end_dim=1)  # (N, L, D ∗ Hout) -> (N * L, D ∗ Hout)
         action_out = self.outlay(merge_obs_H_grid)
 
-        return action_out, hn
+        return action_out, hn, combine_obs_feat
 
 
 class LSTM_batch_actor_TwoPortion(nn.Module):
@@ -2053,20 +2056,22 @@ class critic_single_obs_GRU_batch_twoPortion(nn.Module):
 class critic_single_obs_GRU_batch_twoPortionFM(nn.Module):
     def __init__(self, critic_obs, n_agents, n_actions, single_history, hidden_state_size):
         super(critic_single_obs_GRU_batch_twoPortionFM, self).__init__()
-        # V3.1
+        self.randomLayer = RandomNetwork(critic_obs)
         self.gru = nn.GRU(hidden_state_size, hidden_state_size, batch_first=True)
         self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0] + critic_obs[1], hidden_state_size), nn.ReLU())
         self.act_fea = nn.Sequential(nn.Linear(n_actions, 64), nn.ReLU())
         self.merge_fc_grid = nn.Sequential(nn.Linear(hidden_state_size+64, 512), nn.ReLU())
         self.out_feature_q = nn.Sequential(nn.Linear(512, 1))
 
-    # with new sequence
-    def forward(self, single_state, single_action, history_hidden_state, target_act_flag, dones_stacked=None):
-        #V3.2
+    def forward(self, single_state, single_action, history_hidden_state, target_act_flag, dones_stacked=None, use_random=False):
         own_act = single_action.contiguous().view(single_state[0].shape[0], single_state[0].shape[1], -1)
         own_act_feat = self.act_fea(own_act)
         combine_obsWact = torch.cat((single_state[0], single_state[1]), dim=2)
-        combine_featWact = self.SA_fc(combine_obsWact)
+        if use_random:
+            obs_grid_input = self.randomLayer(combine_obsWact)
+        else:
+            obs_grid_input = combine_obsWact
+        combine_featWact = self.SA_fc(obs_grid_input)
         history_stacked_hidden = history_hidden_state
         seq_length = history_stacked_hidden.shape[2]
         rnn_input = combine_featWact
@@ -2104,7 +2109,7 @@ class critic_single_obs_GRU_batch_twoPortionFM(nn.Module):
         flat_merge_feature = torch.flatten(merge_feature, start_dim=0,
                                            end_dim=1)  # (N, L, D ∗ Hout) -> (N * L, D ∗ Hout)
         q = self.out_feature_q(flat_merge_feature)
-        return q, hn
+        return q, hn, combine_featWact
 
 
 class critic_single_obs_LSTM_batch_twoPortion(nn.Module):

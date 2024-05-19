@@ -124,8 +124,11 @@ class MADDPG:
         # self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-4) for x in self.critics]
         # self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-4) for x in self.actors]
 
-        self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-5) for x in self.critics]
-        self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-5) for x in self.actors]
+        # self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-5) for x in self.critics]
+        # self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-5) for x in self.actors]
+
+        self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr) for x in self.critics]
+        self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr) for x in self.actors]
 
         if self.use_cuda:
             for x in self.actors:
@@ -385,9 +388,14 @@ class MADDPG:
             # current_Q = self.critics[agent](whole_state, whole_action, history_batch[:, :, agent, :])
             with torch.no_grad():
                 if use_GRU_flag:
-                    non_final_next_actions = [self.actors_target[i](
-                        [non_final_next_states_actorin[0], non_final_next_states_actorin[1]],
-                        stacked_hidden, 1, dones_stacked) for i in range(self.n_agents)]
+                    if feature_matching:
+                        non_final_next_actions = [self.actors_target[i](
+                            [non_final_next_states_actorin[0], non_final_next_states_actorin[1]],
+                            stacked_hidden, 1, dones_stacked) for i in range(self.n_agents)]
+                    else:
+                        non_final_next_actions = [self.actors_target[i](
+                            [non_final_next_states_actorin[0], non_final_next_states_actorin[1]],
+                            stacked_hidden, 1, dones_stacked) for i in range(self.n_agents)]
                 elif use_LSTM_flag:
                     # lstm_target_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
                     # lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
@@ -410,9 +418,14 @@ class MADDPG:
                         non_final_next_actions = [self.actors_target[i]([non_final_next_states_actorin[0][:,i,:], non_final_next_states_actorin[1][:,i,:]]) for i in range(self.n_agents)]
 
                 if use_GRU_flag:
-                    next_target_critic_value, _ = \
-                    self.critics_target[agent]([next_stacked_elem_0, next_stacked_elem_1],
-                                               non_final_next_actions[agent][0], stacked_hidden, 1, dones_stacked)
+                    if feature_matching:
+                        next_target_critic_value, _, _ = \
+                        self.critics_target[agent]([next_stacked_elem_0, next_stacked_elem_1],
+                                                   non_final_next_actions[agent][0], stacked_hidden, 1, dones_stacked)
+                    else:
+                        next_target_critic_value, _ = \
+                        self.critics_target[agent]([next_stacked_elem_0, next_stacked_elem_1],
+                                                   non_final_next_actions[agent][0], stacked_hidden, 1, dones_stacked)
                 elif use_LSTM_flag:
                     # lstm_target_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_target_critic_hidden is None else lstm_target_critic_hidden
                     # lstm_target_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device)
@@ -449,14 +462,18 @@ class MADDPG:
                 current_Q, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1], action_batch,
                                                    (stacked_hidden, cell_states), 0, dones_stacked)
             elif use_GRU_flag:
-                current_Q, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1],
-                                                action_batch, stacked_hidden, 0, dones_stacked)
+                if feature_matching:
+                    current_Q, _, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1],
+                                                    action_batch, stacked_hidden, 0, dones_stacked)
+                else:
+                    current_Q, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1],
+                                                    action_batch, stacked_hidden, 0, dones_stacked)
             elif stacking:
                 current_Q, _, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1],
                                                 action_batch, gru_stacked_hidden, (lstm_stacked_hidden,lstm_stacked_cell), 0, dones_stacked)
             else:
                 if feature_matching:
-                    current_Q, _ = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
+                    current_Q, _, _ = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
                                                     action_batch[:, agent, :])
                 else:
                     current_Q = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
@@ -486,9 +503,14 @@ class MADDPG:
             self.critic_optimizer[agent].step()
 
             if use_GRU_flag:
-                action_i, _ = self.actors[agent]([stacked_elem_0, stacked_elem_1], stacked_hidden, 0, dones_stacked)
-                q, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1], action_i, stacked_hidden, 0, dones_stacked)
-                actor_loss = -torch.mean(q)
+                if feature_matching:
+                    action_i, _, _ = self.actors[agent]([stacked_elem_0, stacked_elem_1], stacked_hidden, 0, dones_stacked)
+                    q, _, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1], action_i, stacked_hidden, 0, dones_stacked)
+                    actor_loss = -torch.mean(q)
+                else:
+                    action_i, _ = self.actors[agent]([stacked_elem_0, stacked_elem_1], stacked_hidden, 0, dones_stacked)
+                    q, _ = self.critics[agent]([stacked_elem_0, stacked_elem_1], action_i, stacked_hidden, 0, dones_stacked)
+                    actor_loss = -torch.mean(q)
             elif use_LSTM_flag:
                 # lstm_actor_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_actor_hidden is None else lstm_actor_hidden
                 # lstm_critic_hidden = self.init_hidden(self.actors[0].rnn_hidden_dim, batch_size=self.batch_size, device=device) if lstm_critic_hidden is None else lstm_critic_hidden
@@ -527,15 +549,26 @@ class MADDPG:
             self.actor_optimizer[agent].step()
 
             if feature_matching:
-                _, actor_features_random = self.actors[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]], use_random=True)
-                _, actor_features_clean = self.actors[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]], use_random=False)
-                fm_loss_actor = self.compute_feature_matching_loss(actor_features_random, actor_features_clean)
+                if use_GRU_flag:
+                    _, _, actor_features_random = self.actors[agent]([stacked_elem_0, stacked_elem_1], stacked_hidden, 0, dones_stacked, use_random=True)
+                    _, _, actor_features_clean = self.actors[agent]([stacked_elem_0, stacked_elem_1], stacked_hidden, 0, dones_stacked, use_random=False)
+                    fm_loss_actor = self.compute_feature_matching_loss(actor_features_random, actor_features_clean)
 
-                _, critic_feature_random = self.critics[agent]([stacked_elem_0[:,agent,:], stacked_elem_1[:,agent,:]], action_i, use_random=True)
-                _, critic_feature_clean = self.critics[agent]([stacked_elem_0[:,agent,:], stacked_elem_1[:,agent,:]], action_i, use_random=False)
-                fm_loss_critic = self.compute_feature_matching_loss(critic_feature_random, critic_feature_clean)
-                # Total FM loss
-                total_fm_loss = 0.002 * (fm_loss_actor + fm_loss_critic)
+                    _, _, critic_feature_random = self.critics[agent]([stacked_elem_0, stacked_elem_1], action_i, stacked_hidden, 0, dones_stacked, use_random=True)
+                    _, _, critic_feature_clean = self.critics[agent]([stacked_elem_0, stacked_elem_1], action_i, stacked_hidden, 0, dones_stacked, use_random=False)
+                    fm_loss_critic = self.compute_feature_matching_loss(critic_feature_random, critic_feature_clean)
+                    # Total FM loss
+                    total_fm_loss = 0.002 * (fm_loss_actor + fm_loss_critic)
+                else:
+                    _, actor_features_random = self.actors[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]], use_random=True)
+                    _, actor_features_clean = self.actors[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]], use_random=False)
+                    fm_loss_actor = self.compute_feature_matching_loss(actor_features_random, actor_features_clean)
+
+                    _, critic_feature_random = self.critics[agent]([stacked_elem_0[:,agent,:], stacked_elem_1[:,agent,:]], action_i, use_random=True)
+                    _, critic_feature_clean = self.critics[agent]([stacked_elem_0[:,agent,:], stacked_elem_1[:,agent,:]], action_i, use_random=False)
+                    fm_loss_critic = self.compute_feature_matching_loss(critic_feature_random, critic_feature_clean)
+                    # Total FM loss
+                    total_fm_loss = 0.002 * (fm_loss_actor + fm_loss_critic)
 
                 self.actor_optimizer[agent].zero_grad()
                 self.critic_optimizer[agent].zero_grad()
@@ -796,7 +829,11 @@ class MADDPG:
             # act, hn = self.actors[i](sb.unsqueeze(0), gru_history_input[:, i, :])
             # self.actors[i].eval()
             if use_GRU_flag:
-                act, gru_hist = self.actors[i]([sb.unsqueeze(0).unsqueeze(0), sb_grid.unsqueeze(0).unsqueeze(0)], gru_hist)
+                if feature_matching:
+                    act, gru_hist, _ = self.actors[i]([sb.unsqueeze(0).unsqueeze(0), sb_grid.unsqueeze(0).unsqueeze(0)],
+                                                   gru_hist)
+                else:
+                    act, gru_hist = self.actors[i]([sb.unsqueeze(0).unsqueeze(0), sb_grid.unsqueeze(0).unsqueeze(0)], gru_hist)
             elif use_LSTM_flag:
                 act, lstm_hist = self.actors[i]([sb.unsqueeze(0).unsqueeze(0), sb_grid.unsqueeze(0).unsqueeze(0)], lstm_hist)
             elif stacking:

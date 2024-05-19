@@ -68,8 +68,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -80,8 +80,8 @@ def main(args):
     # full_observable_critic_flag = True
     full_observable_critic_flag = False
 
-    # use_GRU_flag = True
-    use_GRU_flag = False
+    use_GRU_flag = True
+    # use_GRU_flag = False
 
     # use_LSTM_flag = True
     use_LSTM_flag = False
@@ -1049,8 +1049,8 @@ if __name__ == '__main__':
     parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
-    parser.add_argument('--batch_size', default=256, type=int)  # original 512
-    # parser.add_argument('--batch_size', default=10, type=int)  # original 512
+    # parser.add_argument('--batch_size', default=256, type=int)  # original 512
+    parser.add_argument('--batch_size', default=10, type=int)  # original 512
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)
