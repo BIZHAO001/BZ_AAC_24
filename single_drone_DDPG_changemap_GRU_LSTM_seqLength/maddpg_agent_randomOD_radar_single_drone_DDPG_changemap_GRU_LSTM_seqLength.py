@@ -124,11 +124,11 @@ class MADDPG:
         # self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-4) for x in self.critics]
         # self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-4) for x in self.actors]
 
-        # self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-5) for x in self.critics]
-        # self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-5) for x in self.actors]
+        self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr, weight_decay=1e-5) for x in self.critics]
+        self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr, weight_decay=1e-5) for x in self.actors]
 
-        self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr) for x in self.critics]
-        self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr) for x in self.actors]
+        # self.critic_optimizer = [Adam(x.parameters(), lr=cr_lr) for x in self.critics]
+        # self.actor_optimizer = [Adam(x.parameters(), lr=ac_lr) for x in self.actors]
 
         if self.use_cuda:
             for x in self.actors:
@@ -473,7 +473,7 @@ class MADDPG:
                                                 action_batch, gru_stacked_hidden, (lstm_stacked_hidden,lstm_stacked_cell), 0, dones_stacked)
             else:
                 if feature_matching:
-                    current_Q, _, _ = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
+                    current_Q, _ = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],
                                                     action_batch[:, agent, :])
                 else:
                     current_Q = self.critics[agent]([stacked_elem_0[:, agent, :], stacked_elem_1[:, agent, :]],

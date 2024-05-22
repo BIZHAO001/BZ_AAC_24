@@ -41,7 +41,7 @@ else:
     device = torch.device('cpu')
     print('Using CPU')
 
-device = torch.device('cpu')  # Desktop, we must use this.
+# device = torch.device('cpu')  # Desktop, we must use this.
 
 
 def main(args):
@@ -68,8 +68,8 @@ def main(args):
     use_wanDB = False
     # use_wanDB = True
 
-    # evaluation_by_episode = True
-    evaluation_by_episode = False
+    evaluation_by_episode = True
+    # evaluation_by_episode = False
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -287,14 +287,14 @@ def main(args):
     if args.mode == "eval":
         # args.max_episodes = 10  # only evaluate one episode during evaluation mode.
         # args.max_episodes = 5  # only evaluate one episode during evaluation mode.
-        args.max_episodes = 100
+        args.max_episodes = 20
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\160524_18_54_54\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\180524_18_35_33\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(10000)
+        episode_to_check = str(40000)
         model_list = []
         if full_observable_critic_flag:
             for i in range(total_agentNum):
@@ -322,13 +322,16 @@ def main(args):
             print("training start with transfer learning (pre-loaded actor model)")
     # while episode < args.max_episodes:
     steps_before_collide = []
+    all_eps_OD = []
+    # with open('all_eps_OD.pickle', 'rb') as handle:
+    #     one_set_SE_collection = pickle.load(handle)
     while episode < args.max_episodes:  # start of an episode
 
         # ------------ my own env.reset() ------------ #
         episode_start_time = time.time()
         episode += 1
         eps_reset_start_time = time.time()
-        cur_state, norm_cur_state = env.reset_world(total_agentNum, full_observable_critic_flag, show=0)
+        cur_state, norm_cur_state = env.reset_world(total_agentNum, full_observable_critic_flag, episode, show=0)
         eps_reset_time_used = (time.time()-eps_reset_start_time)*1000
         # print("current episode {} reset time used is {} milliseconds".format(episode, eps_reset_time_used))  # need to + 1 here, or else will misrecord as the previous episode
         step_collision_record = [[] for _ in range(total_agentNum)]  # reset at each episode, so that we can record down collision at each step for each agent.
@@ -1062,6 +1065,8 @@ def main(args):
                                 idle_drone = idle_drone + 1
                     break
 
+    # with open('all_eps_OD.pickle', 'wb') as handle:
+    #     pickle.dump(all_eps_OD, handle, protocol=pickle.HIGHEST_PROTOCOL)
     if args.mode == "train":  # only save pickle at end of training to save computational time.
         with open(plot_file_name + '/all_episode_reward.pickle', 'wb') as handle:
             pickle.dump(eps_reward_record, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1119,7 +1124,7 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=40000, type=int)  # run for a total of 50000 episodes
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
     parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     # parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode

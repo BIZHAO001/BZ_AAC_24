@@ -289,7 +289,7 @@ def main(args):
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\160524_10_14_59\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\210524_13_21_04\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
         episode_to_check = str(20000)
@@ -1128,7 +1128,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=512, type=int)  # original 512
     # parser.add_argument('--batch_size', default=3, type=int)  # original 512
     # parser.add_argument('--batch_size', default=1536, type=int)  # original 512
-    parser.add_argument('--gamma', default=0.93, type=float)
+    parser.add_argument('--gamma', default=0.95, type=float)
     parser.add_argument('--tau', default=0.01, type=float)
     parser.add_argument('--update_step', default=1, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
