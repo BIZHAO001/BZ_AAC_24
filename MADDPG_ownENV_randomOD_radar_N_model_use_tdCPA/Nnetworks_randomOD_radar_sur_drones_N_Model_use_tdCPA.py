@@ -277,9 +277,14 @@ class ActorNetwork_allnei_wRadar(nn.Module):
         self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.ReLU())
         self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 64), nn.ReLU())
         self.merge_feature = nn.Sequential(nn.Linear(64+64+64, 256), nn.ReLU())
-        # self.merge_feature = nn.Sequential(nn.Linear(64+64, 256), nn.ReLU())
         self.act_out = nn.Sequential(nn.Linear(256, 256), nn.ReLU(),
                                      nn.Linear(256, n_actions), nn.Tanh())
+        # self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.LeakyReLU(0.01))
+        # self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.LeakyReLU(0.01))
+        # self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 64), nn.LeakyReLU(0.01))
+        # self.merge_feature = nn.Sequential(nn.Linear(64+64+64, 256), nn.LeakyReLU(0.01))
+        # self.act_out = nn.Sequential(nn.Linear(256, 256), nn.LeakyReLU(0.01),
+        #                              nn.Linear(256, n_actions), nn.Tanh())
 
         # self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.ReLU())
         # self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 256), nn.ReLU())
@@ -744,6 +749,13 @@ class critic_single_TwoPortion_wRadar(nn.Module):
         # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128, 512), nn.ReLU())
         self.out_feature_q = nn.Sequential(nn.Linear(512, 256), nn.ReLU(),
                                            nn.Linear(256, 1))
+        # self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.LeakyReLU(0.01))
+        # self.S_all_nei = nn.Sequential(nn.Linear(critic_obs[1], 128), nn.LeakyReLU(0.01))
+        # self.S_radar = nn.Sequential(nn.Linear(critic_obs[2], 128), nn.LeakyReLU(0.01))
+        # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128+128, 512), nn.LeakyReLU(0.01))
+        # # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128, 512), nn.ReLU())
+        # self.out_feature_q = nn.Sequential(nn.Linear(512, 256), nn.LeakyReLU(0.01),
+        #                                    nn.Linear(256, 1))
 
         # ----- to compare
         # self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.ReLU())

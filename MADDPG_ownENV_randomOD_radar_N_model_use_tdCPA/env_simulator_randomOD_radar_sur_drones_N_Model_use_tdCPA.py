@@ -3382,8 +3382,8 @@ class env_simulator:
             # near_drone_penalty_coef = 3
             # near_drone_penalty_coef = 0
             near_drone_penalty = 0
-            dist_to_penalty_upperbound = 6
-            # dist_to_penalty_upperbound = 10
+            # dist_to_penalty_upperbound = 6
+            dist_to_penalty_upperbound = 10
             dist_to_penalty_lowerbound = 2.5
             # assume when at lowerbound, y = 1
             all_neigh_dist.sort()
