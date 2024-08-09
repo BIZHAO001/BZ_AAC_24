@@ -942,8 +942,9 @@ class GRU_batch_actor_TwoPortionFM(nn.Module):
         super(GRU_batch_actor_TwoPortionFM, self).__init__()
         self.randomLayer = RandomNetwork(actor_dim)
         self.rnn_hidden_dim = actor_hidden_state_size
-        self.own_fc = nn.Sequential(nn.Linear(actor_dim[0] + actor_dim[1], 64), nn.ReLU())
-        self.gru = nn.GRU(64, actor_hidden_state_size, batch_first=True)
+        # self.own_fc = nn.Sequential(nn.Linear(actor_dim[0] + actor_dim[1], 64), nn.ReLU())
+        # self.gru = nn.GRU(64, actor_hidden_state_size, batch_first=True)
+        self.gru = nn.GRU(actor_dim[0] + actor_dim[1], actor_hidden_state_size, batch_first=True)  # V3
         self.outlay = nn.Sequential(nn.Linear(actor_hidden_state_size, 128), nn.ReLU(),
                                     nn.Linear(128, 128), nn.ReLU(),
                                     nn.Linear(64 + 64, n_actions), nn.Tanh())
@@ -956,10 +957,10 @@ class GRU_batch_actor_TwoPortionFM(nn.Module):
             obs_grid_input = combine_obs
         stacked_hidden = history_hidden_state
         seq_length = stacked_hidden.shape[2]
-        # rnn_input = combine_obs  # this is for V3
+        rnn_input = obs_grid_input  # this is for V3
         # The two lines below, it is for V3.1
-        combine_obs_feat = self.own_fc(obs_grid_input)
-        rnn_input = combine_obs_feat
+        # combine_obs_feat = self.own_fc(obs_grid_input)
+        # rnn_input = combine_obs_feat
 
         if len(stacked_hidden.shape) == 3:
             rnn_output, hn = self.gru(rnn_input, history_hidden_state)
@@ -993,7 +994,8 @@ class GRU_batch_actor_TwoPortionFM(nn.Module):
         merge_obs_H_grid = torch.flatten(rnn_output, start_dim=0, end_dim=1)  # (N, L, D ∗ Hout) -> (N * L, D ∗ Hout)
         action_out = self.outlay(merge_obs_H_grid)
 
-        return action_out, hn, combine_obs_feat
+        # return action_out, hn, combine_obs_feat
+        return action_out, hn, obs_grid_input
 
 
 class LSTM_batch_actor_TwoPortion(nn.Module):
@@ -2058,6 +2060,7 @@ class critic_single_obs_GRU_batch_twoPortionFM(nn.Module):
         super(critic_single_obs_GRU_batch_twoPortionFM, self).__init__()
         self.randomLayer = RandomNetwork(critic_obs)
         self.gru = nn.GRU(hidden_state_size, hidden_state_size, batch_first=True)
+        # self.gru = nn.GRU(critic_obs[0] + critic_obs[1], hidden_state_size, batch_first=True)  # V3.2
         self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0] + critic_obs[1], hidden_state_size), nn.ReLU())
         self.act_fea = nn.Sequential(nn.Linear(n_actions, 64), nn.ReLU())
         self.merge_fc_grid = nn.Sequential(nn.Linear(hidden_state_size+64, 512), nn.ReLU())
@@ -2075,6 +2078,7 @@ class critic_single_obs_GRU_batch_twoPortionFM(nn.Module):
         history_stacked_hidden = history_hidden_state
         seq_length = history_stacked_hidden.shape[2]
         rnn_input = combine_featWact
+        # rnn_input = combine_obsWact  # V3.3
 
         if seq_length == 1:
             stacked_hidden = history_stacked_hidden[:, :, 0, :].contiguous()

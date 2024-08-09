@@ -86,6 +86,9 @@ class env_simulator:
         self.target_pool = None
         self.target_pool_collection = {}
 
+        self.deviation_circles = []
+        self.deviation_circles_centre_KD = None
+
     def create_world(self, total_agentNum, n_actions, gamma, tau, target_update, largest_Nsigma, smallest_Nsigma, ini_Nsigma, max_xy, max_spd, acc_range):
         # config OU_noise
         self.OU_noise = OUActionNoise(np.zeros(n_actions), 0.1, 0.15, 0.5)
@@ -289,6 +292,11 @@ class env_simulator:
                 random_start_pos = load_random_OD_geo_fence[0:2]
                 random_end_pos = load_random_OD_geo_fence[2:4]
 
+            # with open(r'F:\githubClone\Multi_agent_AAC\single_drone_DDPG_changemap_GRU_LSTM_seqLength\GRUFM_3G_randomMap_No1_random_D.pickle', 'rb') as handle:
+            #     stored_for_trajPlot = pickle.load(handle)
+            # random_start_pos = tuple(stored_for_trajPlot[0][0].ini_pos)
+            # random_end_pos = tuple(stored_for_trajPlot[0][0].goal[-1])
+
             host_current_circle = Point(np.array(random_start_pos)[0], np.array(random_start_pos)[1]).buffer(self.all_agents[agentIdx].protectiveBound)
 
             possiblePoly = self.allbuildingSTR_collection[random_map_idx].query(host_current_circle)
@@ -421,13 +429,14 @@ class env_simulator:
                 geo_fence = circle_centre.buffer(5)
                 self.geo_fence_area.append(geo_fence)
         else:
-            geo_fence_num = 1
+            geo_fence_num = 10
             distance_from_start = 7.5  # Distances from the start and end points of the LineString
             distance_from_end = 7.5  # we ensure the geo-fence will not cover the start and end point.
             if (self.all_agents[0].ref_line.length > (distance_from_start + distance_from_end)) and len(
                     filtered_centroids) > 0:
                 gf_to_create = min(geo_fence_num, len(filtered_centroids))
                 sampled_points = random.sample(filtered_centroids, gf_to_create)
+
                 # if args.mode == "eval":
                 #     while len(sampled_points) < geo_fence_num:
                 #         # Randomly select a point
@@ -441,6 +450,7 @@ class env_simulator:
                 #         # Create new point by adding the offset
                 #         new_point = Point(base_point.x + delta_x, base_point.y + delta_y)
                 #         sampled_points.append(new_point)
+
                 for point_on_line in sampled_points:
                     # Fixed distance within which the point should be generated
                     fixed_distance = 2.5  # don't deviate from ref line too far
@@ -453,6 +463,24 @@ class env_simulator:
                     circle_centre = Point(random_point_x, random_point_y)
                     geo_fence = circle_centre.buffer(5)
                     self.geo_fence_area.append(geo_fence)
+
+        # self.geo_fence_area = stored_for_trajPlot[1]
+
+        if args.mode == "eval":
+            # create deviation circle by ref_path
+            circle_by_refPath, circle_by_refPath_coordinates = create_adjusted_circles_along_line(self.all_agents[0].ref_line, self.all_agents[0].protectiveBound, self.all_agents[0].protectiveBound, self.geo_fence_area)
+            # create deviation circle by geo-fences
+            circle_by_geo_fences = []
+            circle_by_geo_fences_coordinates = []
+            for gf_circle in self.geo_fence_area:
+                small_circles_to_add, small_circle_coord = create_corrected_small_circles_outside(gf_circle.centroid, gf_circle.exterior, self.all_agents[0].protectiveBound, self.geo_fence_area, self.allbuildingSTR_wBound_collection[random_map_idx])
+                circle_by_geo_fences.extend(small_circles_to_add)
+                circle_by_geo_fences_coordinates.extend(small_circle_coord)
+            # self.deviation_circles = circle_by_refPath + circle_by_geo_fences
+            self.deviation_circles = circle_by_geo_fences
+            # self.deviation_circles_centre_KD = KDTree(np.array(circle_by_refPath_coordinates+circle_by_geo_fences_coordinates))
+            self.deviation_circles_centre_KD = KDTree(np.array(circle_by_geo_fences_coordinates))
+
 
         # for _ in range(1):  # we create 1 centre points for generate temporary geo-fence
         #     # get the nearest point from the host drone's pos to its ref line
@@ -534,6 +562,11 @@ class env_simulator:
             for fence in self.geo_fence_area:
                 geo_fence_circle = shapelypoly_to_matpoly(fence, False, 'r')
                 ax.add_patch(geo_fence_circle)
+
+            # show deviation_circle
+            for cirs in self.deviation_circles:
+                cirs_plot = shapelypoly_to_matpoly(cirs, False, 'c')
+                ax.add_patch(cirs_plot)
 
             # show the nearest building obstacles
             # nearest_buildingPoly_mat = shapelypoly_to_matpoly(nearest_buildingPoly, True, 'g', 'k')
@@ -2649,7 +2682,28 @@ class env_simulator:
 
             nearest_pt = nearest_points(drone_obj.ref_line, curPoint)[0]
             # nearest_pt = drone_obj.ref_line.interpolate(drone_obj.ref_line.project(curPoint))
-            cross_err_distance, x_error, y_error = self.cross_track_error_point(curPoint, nearest_pt)
+            if args.mode == 'train':
+                cross_err_distance, x_error, y_error = self.cross_track_error_point(curPoint, nearest_pt)
+            else:
+                if len(self.deviation_circles) == 0:
+                    cross_err_distance, x_error, y_error = self.cross_track_error_point(curPoint, nearest_pt)
+                else:
+                    perpendicular_line_to_refLine = LineString([curPoint, nearest_pt])
+                    use_deviation_circle_as_ref = False
+                    for gf_circle in self.geo_fence_area:
+                        if gf_circle.intersects(perpendicular_line_to_refLine) and not gf_circle.touches(perpendicular_line_to_refLine):
+                            use_deviation_circle_as_ref = True
+                            break
+                        else:
+                            use_deviation_circle_as_ref = False
+                    if use_deviation_circle_as_ref:
+                        # obtain the nearest point among all the centroid of deviation circle
+                        point_of_interest = self.all_agents[drone_idx].pos
+                        # Query the KDTree for the nearest point
+                        cross_err_distance, _ = self.deviation_circles_centre_KD.query(point_of_interest)
+                    else:
+                        cross_err_distance, x_error, y_error = self.cross_track_error_point(curPoint, nearest_pt)
+
             # cross_err_distance, x_error, y_error, nearest_pt = self.cross_track_error(nearest_point,
             #                                                               drone_obj.ref_line)  # deviation from the reference line, cross track error
             x_norm, y_norm = self.normalizer.nmlz_pos(drone_obj.pos)

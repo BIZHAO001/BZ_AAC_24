@@ -52,7 +52,7 @@ def obtain_mean_std_reaching_rate_time_to_goal(all_episode_situation):
     std_time_to_goal = np.std(time_to_reach_goal)
     return mean_reaching_rate_percent, std_reaching_rate_percent, mean_time_to_goal, std_time_to_goal
 
-with open(r'F:\githubClone\Multi_agent_AAC\single_drone_DDPG_changemap_GRU_LSTM_seqLength\GRU_7G_140524_14_49_09_1000eps_random1.pickle', 'rb') as handle:
+with open(r'F:\githubClone\Multi_agent_AAC\single_drone_DDPG_changemap_GRU_LSTM_seqLength\FMGRU_10G_270524_09_00_23_1000eps.pickle', 'rb') as handle:
     all_episode_situation = pickle.load(handle)
 mean_mean_deviation, std_mean_deviation = extract_mean_and_std_of_mean_deviation(all_episode_situation)
 mean_reaching_rate_percent, std_reaching_rate_percent, \

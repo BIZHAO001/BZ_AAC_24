@@ -68,8 +68,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -80,8 +80,8 @@ def main(args):
     # full_observable_critic_flag = True
     full_observable_critic_flag = False
 
-    # use_GRU_flag = True
-    use_GRU_flag = False
+    use_GRU_flag = True
+    # use_GRU_flag = False
 
     # use_LSTM_flag = True
     use_LSTM_flag = False
@@ -224,9 +224,9 @@ def main(args):
         args.max_episodes = 1000
         # args.max_episodes = 500
         # args.max_episodes = 20
-        # args.max_episodes = 1
+        # args.max_episodes = 100
         episode_situation_holder = [None] * args.max_episodes
-        pre_fix = r'D:\MADDPG_2nd_jp\130524_20_25_36\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\270524_09_00_23\interval_record_eps'
         episode_to_check = str(10000)
         load_filepath_0 = pre_fix + '\episode_' + episode_to_check + '_agent_0actor_net.pth'
         load_filepath_1 = pre_fix + '\episode_' + episode_to_check + '_agent_1actor_net.pth'
@@ -249,9 +249,9 @@ def main(args):
         # Create a list of all indices excluding 3
         indices = [i for i in range(len(env.world_map_2D_collection)) if i not in (3, 5)]
         # Select a random index from the list of indices
-        random_map_idx = random.choice(indices)
-        # random_map_idx = 3  # this value is the previous fixed environment
-        cur_state, norm_cur_state = env.reset_world(total_agentNum, random_map_idx, use_reached, args, show=0)  # random map choose here
+        # random_map_idx = random.choice(indices)
+        random_map_idx = 3  # this value is the previous fixed environment
+        cur_state, norm_cur_state = env.reset_world(total_agentNum, random_map_idx, use_reached, args, show=1)  # random map choose here
 
         eps_reset_time_used = (time.time()-eps_reset_start_time)*1000
         # print("current episode {} reset time used is {} milliseconds".format(episode, eps_reset_time_used))  # need to + 1 here, or else will misrecord as the previous episode
@@ -696,9 +696,8 @@ def main(args):
                 #         norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
                 #         lstm_hist, gru_hist, use_LSTM_flag, stacking, noisy=noise_flag, use_GRU_flag=use_GRU_flag)  # noisy is false because we are using stochastic policy
 
-                action, step_noise_val, lstm_hist, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(
-                    norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens,
-                    lstm_hist, gru_hist, use_LSTM_flag, stacking, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
+                action, step_noise_val, lstm_hist, gru_hist, cur_actor_hiddens, next_actor_hiddens = model.choose_action(env.OU_noise, norm_cur_state, total_step, episode, step, eps_end, noise_start_level, cur_actor_hiddens, lstm_hist, gru_hist, use_LSTM_flag, stacking, feature_matching, noisy=noise_flag, use_GRU_flag=use_GRU_flag)
+
                 # action = model.choose_action(cur_state, episode, noisy=False)
                 # action = env.get_actions_noCR()  # only update heading, don't update any other attribute
                 # for a_idx, action_ele in enumerate(action):
@@ -1032,6 +1031,10 @@ def main(args):
         print("One goal reached count is {}".format(one_drone_reach))
         print("Two goal reached count is {}".format(two_drone_reach))
         print("All goal reached count is {}".format(all_drone_reach))
+        # generate_traj(env, episode_situation_holder, random_map_idx)
+        # traj_info = [env.all_agents, env.geo_fence_area]
+        # with open('GRU_7G_110524_16_13_03.pickle', 'wb') as handle:
+        #     pickle.dump(traj_info, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print(f'training finishes, time spent: {datetime.timedelta(seconds=int(time.time() - training_start_time))}')
     if args.mode == 'train':
         with open(plot_file_name + '/all_episode_reward.pickle', 'wb') as handle:
@@ -1045,7 +1048,7 @@ if __name__ == '__main__':
     parser.add_argument('--scenario', default="simple_spread", type=str)
     parser.add_argument('--max_episodes', default=10000, type=int)  # run for a total of 50000 episodes
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg/TD3")
-    parser.add_argument('--mode', default="train", type=str, help="train/eval")
+    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
     parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     parser.add_argument('--seed', default=777, type=int)  # may choose to use 3407
