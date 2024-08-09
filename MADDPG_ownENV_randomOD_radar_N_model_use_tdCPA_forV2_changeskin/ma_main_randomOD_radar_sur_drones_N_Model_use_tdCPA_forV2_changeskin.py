@@ -13,9 +13,9 @@ import time
 import matplotlib.animation as animation
 import pickle
 import wandb
-from parameters_randomOD_radar_sur_drones_N_Model_use_tdCPA import initialize_parameters
-from maddpg_agent_randomOD_radar_sur_drones_N_Model_use_tdCPA import MADDPG
-from utils_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
+from parameters_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import initialize_parameters
+from maddpg_agent_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import MADDPG
+from utils_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import *
 from copy import deepcopy
 import torch
 import matplotlib.pyplot as plt
@@ -25,7 +25,7 @@ from shapely.strtree import STRtree
 from matplotlib.markers import MarkerStyle
 import math
 from matplotlib.transforms import Affine2D
-from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
+from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import *
 from collections import deque
 import csv
 
@@ -65,11 +65,11 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    use_wanDB = False
-    # use_wanDB = True
+    # use_wanDB = False
+    use_wanDB = True
 
-    # evaluation_by_episode = True
-    evaluation_by_episode = False
+    evaluation_by_episode = True
+    # evaluation_by_episode = False
 
     # get_evaluation_status = True  # have figure output
     get_evaluation_status = False  # no figure output, mainly obtain collision rate
@@ -92,8 +92,8 @@ def main(args):
     # use_selfATT_with_radar = True
     use_selfATT_with_radar = False
 
-    use_allNeigh_wRadar = True
-    # use_allNeigh_wRadar = False
+    # use_allNeigh_wRadar = True
+    use_allNeigh_wRadar = False
 
     if use_allNeigh_wRadar:
         # own_obs_only = True
@@ -115,12 +115,11 @@ def main(args):
         )
 
     # -------------- create my own environment -----------------
-    eps_start, eps_end, eps_period, eps, env, \
-    agent_grid_obs, BUFFER_SIZE, BATCH_SIZE, GAMMA, TAU, UPDATE_EVERY, seed_used, max_xy = initialize_parameters()
+    env, max_xy = initialize_parameters()
     # total_agentNum = len(pd.read_excel(env.agentConfig))
-    # total_agentNum = 3
+    total_agentNum = 2
     # total_agentNum = 5
-    total_agentNum = 8
+    # total_agentNum = 8
     # total_agentNum = 1
     # max_nei_num = 5
     # create world
@@ -151,7 +150,8 @@ def main(args):
             # actor_dim = [7, (total_agentNum - 1) * 6, 36, 6]
             # actor_dim = [9, (total_agentNum - 1) * 8, 36, 6]
             # actor_dim = [9, (total_agentNum - 1) * 8, 18, 6]
-            actor_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+            actor_dim = [7, (total_agentNum - 1) * 5, 18, 6]  # original
+
             # actor_dim = [9, (total_agentNum - 1) * 5, 18, 6]
             # actor_dim = [6, 1 * 5, 36, 6]
             # actor_dim = [6, 2 * 5, 36, 6]
@@ -159,7 +159,8 @@ def main(args):
             # critic_dim = [7, (total_agentNum - 1) * 6, 36, 6]
             # critic_dim = [9, (total_agentNum - 1) * 8, 36, 6]
             # critic_dim = [9, (total_agentNum - 1) * 8, 18, 6]
-            critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]
+            critic_dim = [7, (total_agentNum - 1) * 5, 18, 6]  # original
+
             # critic_dim = [9, (total_agentNum - 1) * 5, 18, 6]
             # critic_dim = [6, 1 * 5, 36, 6]
             # critic_dim = [6, 2 * 5, 36, 6]
@@ -172,7 +173,8 @@ def main(args):
             # actor_dim = [8+(total_agentNum-1)*4, 18, 6]  # dim host, maximum dim grid, dim other drones
             # actor_dim = [6+(total_agentNum-1)*5, 18, 6]  # dim host, maximum dim grid, dim other drones
             # actor_dim = [6+(total_agentNum-1)*4, (total_agentNum-1)*1, 6]  # dim host, maximum dim grid, dim other drones
-            actor_dim = [6, (total_agentNum-1)*5, 6]  # dim host, maximum dim grid, dim other drones
+            # actor_dim = [6, (total_agentNum-1)*5, 6]  # dim host, maximum dim grid, dim other drones
+            actor_dim = [7, 18, 6]  # dim host, maximum dim grid, dim other drones
             # actor_dim = [14, 18, 6]  # dim host, maximum dim grid, dim other drones
             # actor_dim = [11, 18, 6]  # dim host, maximum dim grid, dim other drones
             # actor_dim = [12, 18, 6]  # dim host, maximum dim grid, dim other drones
@@ -185,7 +187,8 @@ def main(args):
             # critic_dim = [8+(total_agentNum-1)*4, 18, 6]  # dim host, maximum dim grid, dim other drones
             # critic_dim = [6+(total_agentNum-1)*5, 18, 6]  # dim host, maximum dim grid, dim other drones
             # critic_dim = [6+(total_agentNum-1)*4, (total_agentNum-1)*1, 6]  # dim host, maximum dim grid, dim other drones
-            critic_dim = [6, (total_agentNum-1)*5, 6]  # dim host, maximum dim grid, dim other drones
+            # critic_dim = [6, (total_agentNum-1)*5, 6]  # dim host, maximum dim grid, dim other drones
+            critic_dim = [7, 18, 6]  # dim host, maximum dim grid, dim other drones
             # critic_dim = [14, 18, 6]
             # critic_dim = [11, 18, 6]
             # critic_dim = [12, 18, 6]
@@ -228,7 +231,7 @@ def main(args):
     # max_spd = 15
     # max_spd = 10
     max_spd = 5
-    env.create_world(total_agentNum, n_actions, GAMMA, TAU, UPDATE_EVERY, largest_Nsigma, smallest_Nsigma, ini_Nsigma, max_xy, max_spd, acc_range)
+    env.create_world(total_agentNum, n_actions, args.gamma, args.tau, args.update_step, largest_Nsigma, smallest_Nsigma, ini_Nsigma, max_xy, max_spd, acc_range)
 
     # --------- my own -----------
     n_agents = len(env.all_agents)
@@ -237,12 +240,12 @@ def main(args):
     torch.manual_seed(args.seed)  # this is the seed
 
     if args.algo == "maddpg":
-        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, GAMMA, TAU, full_observable_critic_flag, use_GRU_flag, use_single_portion_selfATT, use_selfATT_with_radar, use_allNeigh_wRadar, own_obs_only, env.normalizer, device)
+        model = MADDPG(actor_dim, critic_dim, n_actions, actor_hidden_state, gru_history_length, n_agents, args, criticNet_lr, actorNet_lr, args.gamma, args.tau, full_observable_critic_flag, use_GRU_flag, use_single_portion_selfATT, use_selfATT_with_radar, use_allNeigh_wRadar, own_obs_only, env.normalizer, device)
 
     episode = 0
     current_row = 0
     excel_file_path = '../MADDPG_ownENV_randomOD_radar_one_model_use_tdCPA/experience_replay_data.xlsx'
-    writer = pd.ExcelWriter(excel_file_path, engine='xlsxwriter')
+    # writer = pd.ExcelWriter(excel_file_path, engine='xlsxwriter')
     total_step = 0
     score_history = []
     experience_replay_record = []
@@ -254,8 +257,7 @@ def main(args):
     # eps_end = 5000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     # eps_end = round(args.max_episodes / 2)  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     # eps_end = 8000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
-    # eps_end = 10000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
-    eps_end = 20000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
+    eps_end = 10000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     # eps_end = 2500  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     # eps_end = 4500  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
     # eps_end = 1000  # at eps = eps_end, the eps value drops to lowest value which is 0.03 (this value is fixed)
@@ -291,10 +293,10 @@ def main(args):
         # args.max_episodes = 1
         # args.max_episodes = 250
         # args.max_episodes = 25
-        pre_fix = r'D:\MADDPG_2nd_jp\200524_16_37_05\interval_record_eps'
+        pre_fix = r'D:\MADDPG_2nd_jp\220524_16_46_07\interval_record_eps'
         # episode_to_check = str(10000)
         # pre_fix = r'F:\OneDrive_NTU_PhD\OneDrive - Nanyang Technological University\DDPG_2ndJournal\dim_8_transfer_learning'
-        episode_to_check = str(27000)
+        episode_to_check = str(19000)
         model_list = []
         if full_observable_critic_flag:
             for i in range(total_agentNum):
@@ -322,16 +324,13 @@ def main(args):
             print("training start with transfer learning (pre-loaded actor model)")
     # while episode < args.max_episodes:
     steps_before_collide = []
-    all_eps_OD = []
-    # with open('all_eps_OD.pickle', 'rb') as handle:
-    #     one_set_SE_collection = pickle.load(handle)
     while episode < args.max_episodes:  # start of an episode
 
         # ------------ my own env.reset() ------------ #
         episode_start_time = time.time()
         episode += 1
         eps_reset_start_time = time.time()
-        cur_state, norm_cur_state = env.reset_world(total_agentNum, full_observable_critic_flag, episode, show=0)
+        cur_state, norm_cur_state = env.reset_world_change_skin(total_agentNum, full_observable_critic_flag, show=0)
         eps_reset_time_used = (time.time()-eps_reset_start_time)*1000
         # print("current episode {} reset time used is {} milliseconds".format(episode, eps_reset_time_used))  # need to + 1 here, or else will misrecord as the previous episode
         step_collision_record = [[] for _ in range(total_agentNum)]  # reset at each episode, so that we can record down collision at each step for each agent.
@@ -384,7 +383,7 @@ def main(args):
 
                 one_step_reward_start = time.time()
                 # reward_aft_action, done_aft_action, check_goal, step_reward_record, status_holder, step_collision_record, bound_building_check = env.ss_reward(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode, own_obs_only)   # remove reached agent here
-                reward_aft_action, done_aft_action, check_goal, step_reward_record, status_holder, step_collision_record, bound_building_check = env.ss_reward_Mar(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode)   # remove reached agent here
+                reward_aft_action, done_aft_action, check_goal, step_reward_record, status_holder, step_collision_record, bound_building_check = env.ss_reward_Mar_changeskin(step, step_reward_record, step_collision_record, dummy_xy, full_observable_critic_flag, args, evaluation_by_episode)   # remove reached agent here
                 reward_generation_time = (time.time() - one_step_reward_start)*1000
                 # print("current step reward time used is {} milliseconds".format(reward_generation_time))
 
@@ -567,7 +566,7 @@ def main(args):
                     accum_reward = accum_reward + sum(reward_aft_action)
 
                 step_update_time_start = time.time()
-                c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, use_allNeigh_wRadar, use_selfATT_with_radar, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
+                c_loss, a_loss, single_eps_critic_cal_record = model.update_myown(episode, total_step, args.update_step, single_eps_critic_cal_record, transfer_learning, use_allNeigh_wRadar, use_selfATT_with_radar, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v2(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 # c_loss, a_loss, single_eps_critic_cal_record, current_row = model.update_myown_v3(episode, total_step, UPDATE_EVERY, single_eps_critic_cal_record, transfer_learning, own_obs_only, use_allNeigh_wRadar, use_selfATT_with_radar, step, experience_replay_record, action, current_row, excel_file_path, writer, wandb, full_observable_critic_flag, use_GRU_flag)  # last working learning framework
                 update_time_used = (time.time() - step_update_time_start)*1000
@@ -746,8 +745,8 @@ def main(args):
                     if episode % 100 == 0:  # every 100 episode we record the training performance (without evaluation)
                         # if episode == 10:
                         # After the loop, save the file once
-                        writer.save()
-                        print(f'Data saved to {excel_file_path}')
+                        # writer.save()
+                        # print(f'Data saved to {excel_file_path}')
                         # save a gif every 100 episode during training
                         episode_to_check = str(episode)
                         save_gif(env, trajectory_eachPlay, plot_file_name, episode_to_check, episode)
@@ -1065,8 +1064,6 @@ def main(args):
                                 idle_drone = idle_drone + 1
                     break
 
-    # with open('all_eps_OD.pickle', 'wb') as handle:
-    #     pickle.dump(all_eps_OD, handle, protocol=pickle.HIGHEST_PROTOCOL)
     if args.mode == "train":  # only save pickle at end of training to save computational time.
         with open(plot_file_name + '/all_episode_reward.pickle', 'wb') as handle:
             pickle.dump(eps_reward_record, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -1081,8 +1078,8 @@ def main(args):
             write = csv.writer(f)
             write.writerows([score_history])
         # After the loop, save the file once
-        writer.save()
-        print(f'Data saved to {excel_file_path}')
+        # writer.save()
+        # print(f'Data saved to {excel_file_path}')
     else:
         if evaluation_by_episode:
             print("total collision count is {}, {}%".format(collision_count, round(collision_count/args.max_episodes*100,2)))
@@ -1122,9 +1119,9 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--scenario', default="simple_spread", type=str)
-    parser.add_argument('--max_episodes', default=40000, type=int)  # run for a total of 50000 episodes
-    parser.add_argument('--algo', default="maddpg", type=str, help ="commnet/bicnet/maddpg")
-    parser.add_argument('--mode', default="eval", type=str, help="train/eval")
+    parser.add_argument('--max_episodes', default=20000, type=int)  # run for a total of 50000 episodes
+    parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
+    parser.add_argument('--mode', default="train", type=str, help="train/eval")
     # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
     parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     # parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
@@ -1135,6 +1132,9 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=512, type=int)  # original 512
     # parser.add_argument('--batch_size', default=3, type=int)  # original 512
     # parser.add_argument('--batch_size', default=1536, type=int)  # original 512
+    parser.add_argument('--gamma', default=0.95, type=float)
+    parser.add_argument('--tau', default=0.01, type=float)
+    parser.add_argument('--update_step', default=1, type=int)
     parser.add_argument('--render_flag', default=False, type=bool)
     parser.add_argument('--ou_theta', default=0.15, type=float)
     parser.add_argument('--ou_mu', default=0.0, type=float)

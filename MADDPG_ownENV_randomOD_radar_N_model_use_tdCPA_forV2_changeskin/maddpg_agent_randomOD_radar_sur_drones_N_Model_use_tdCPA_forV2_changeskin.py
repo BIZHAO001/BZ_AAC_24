@@ -1,10 +1,10 @@
 # from Nnetworks_MADDPGv3 import CriticNetwork_0724, ActorNetwork
-from Nnetworks_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
-from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
+from Nnetworks_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import *
+from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import *
 import torch
 from copy import deepcopy
 from torch.optim import Adam
-from memory_randomOD_radar_sur_drones_N_Model_use_tdCPA import ReplayMemory, Experience
+from memory_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import ReplayMemory, Experience
 # from random_process_MADDPGv3_randomOD import OrnsteinUhlenbeckProcess
 from torch.autograd import Variable
 import os
@@ -121,6 +121,8 @@ class MADDPG:
         self.tau = tau
 
         self.var = [1.0 for i in range(n_agents)]
+        # self.OU_noise = OrnsteinUhlenbeckProcess(dim_act)
+        self.OU_noise = OUActionNoise(np.zeros(dim_act), 0.1, 0.15, 0.5)
         # self.var = [0.5 for i in range(n_agents)]
 
         # original, critic learning rate is 10 times larger compared to actor
@@ -398,7 +400,7 @@ class MADDPG:
                                                                  non_final_next_states_actorin[1],
                                                                  non_final_next_states_actorin[2]])
                 else:
-                    non_final_next_actions = self.actors_target([non_final_next_states_actorin[0], non_final_next_states_actorin[1]])
+                    non_final_next_actions = self.actors_target([non_final_next_states_actorin[0], non_final_next_states_actorin[2]])
 
             # non_final_next_combine_actions = torch.stack(non_final_next_actions).view(self.batch_size, -1)
             non_final_next_combine_actions = non_final_next_actions
@@ -416,7 +418,7 @@ class MADDPG:
                 elif use_selfATT_with_radar or use_allNeigh_wRadar:
                     current_Q = self.critics([stacked_elem_0, stacked_elem_1, stacked_elem_2], action_batch)
                 else:
-                    current_Q = self.critics([stacked_elem_0, stacked_elem_1], action_batch)
+                    current_Q = self.critics([stacked_elem_0, stacked_elem_2], action_batch)
 
             # has_positive_values = (current_Q > 0).any()
             # if has_positive_values:
@@ -440,7 +442,7 @@ class MADDPG:
                         next_target_critic_value = self.critics_target([next_stacked_elem_0, next_stacked_elem_1, next_stacked_elem_2],
                             non_final_next_actions).squeeze()
                     else:
-                        next_target_critic_value = self.critics_target([next_stacked_elem_0, next_stacked_elem_1],
+                        next_target_critic_value = self.critics_target([next_stacked_elem_0, next_stacked_elem_2],
                             non_final_next_actions).squeeze()
 
                 # tar_Q_before_rew = self.GAMMA * next_target_critic_value * (1-dones_stacked[:, agent])
@@ -511,7 +513,7 @@ class MADDPG:
                 elif use_selfATT_with_radar or use_allNeigh_wRadar:
                     action_i = self.actors([stacked_elem_0, stacked_elem_1, stacked_elem_2])
                 else:
-                    action_i = self.actors([stacked_elem_0, stacked_elem_1])
+                    action_i = self.actors([stacked_elem_0, stacked_elem_2])
                 ac = action_i.squeeze(0)  # replace the actor from self.actors[agent] into action batch
 
 
@@ -530,7 +532,7 @@ class MADDPG:
                 elif use_selfATT_with_radar or use_allNeigh_wRadar:
                     actor_loss = - self.critics([stacked_elem_0, stacked_elem_1, stacked_elem_2], ac).mean()
                 else:
-                    actor_loss = - self.critics([stacked_elem_0, stacked_elem_1], ac).mean()
+                    actor_loss = - self.critics([stacked_elem_0, stacked_elem_2], ac).mean()
 
             # actor_update_time = time.time()
             # actor_loss = -self.critics[agent](stacked_elem_0[:,agent,:], ac[:, agent, :], agents_cur_hidden_state[:, agent, :])[0].mean()
@@ -1298,10 +1300,12 @@ class MADDPG:
                     else:
                         act = self.actors([sb.unsqueeze(0), sb_full_nei.unsqueeze(0), sb_grid.unsqueeze(0)])
             else:
-                act = self.actors([sb.unsqueeze(0), sb_full_nei.unsqueeze(0)])
+                # act = self.actors([sb.unsqueeze(0), sb_full_nei.unsqueeze(0)])
+                act = self.actors([sb.unsqueeze(0), sb_grid.unsqueeze(0)])
             # act = self.actors([sb.unsqueeze(0), sb_grid.unsqueeze(0)])
             if noisy:
                 noise_value = np.random.randn(2) * self.var[i]
+                # noise_value = self.OU_noise.sample(self.var[i])  # OU noise
                 act = act + torch.from_numpy(noise_value).to(self.device)
                 # print("Episode {}, agent {}, noise level is {}".format(episode, i, self.var[i]))
                 act = torch.clamp(act, -1.0, 1.0)  # when using stochastic policy, we are not require to clamp again.

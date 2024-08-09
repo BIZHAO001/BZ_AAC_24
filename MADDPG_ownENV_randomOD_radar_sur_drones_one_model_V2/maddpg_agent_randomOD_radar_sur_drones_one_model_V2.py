@@ -440,8 +440,10 @@ class MADDPG:
                 # wandb.log({'agent' + str(idx): wandb.Histogram(param.grad.cpu().detach().numpy())})
 
     def choose_action(self, state, cur_total_step, cur_episode, step, mini_noise_eps, noise_start_level, actor_hiddens, use_allNeigh_wRadar, noisy=True):
+        time_action = time.time()
         # ------------- MADDPG_test_181123_10_10_54 version noise -------------------
         obs = torch.from_numpy(np.stack(state[0])).float().to(device)
+
         if use_allNeigh_wRadar:
             obs_full_nei = torch.from_numpy(np.stack(state[1])).float().to(device)
             obs_grid = torch.from_numpy(np.stack(state[2])).float().to(device)
@@ -542,7 +544,8 @@ class MADDPG:
         #     if self.var[i] > 0.05:  # noise decrease at every step instead of every episode.
         #         self.var[i] = self.var[i] * 0.999998
         # self.steps_done += 1
-
+        used_time = (time.time()-time_action)*1000
+        print("time used is {} ms".format(used_time))
         return actions.data.cpu().numpy(), noise_value, gru_history_input.squeeze(0).data.cpu(), act_hn.data.cpu()  # NOTE: tensor.data.cpu() is to make the tensor's "is_leaf" = True, this also prevent the error message on line "retain_graph=True"
         # return actions.data.cpu().numpy(), noise_value, gru_history_input.squeeze(0).data.cpu()  # NOTE: tensor.data.cpu() is to make the tensor's "is_leaf" = True, this also prevent the error message on line "retain_graph=True"
         # return actions.data.cpu().numpy(), noise_value

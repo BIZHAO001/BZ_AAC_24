@@ -2986,7 +2986,8 @@ class env_simulator:
             # rew = 3
             rew = 0
             # dist_to_goal_coeff = 1
-            dist_to_goal_coeff = 3
+            # dist_to_goal_coeff = 3
+            dist_to_goal_coeff = 6
             # dist_to_goal_coeff = 0
             # dist_to_goal_coeff = 2
 
@@ -3100,6 +3101,12 @@ class env_simulator:
             # the distance is based on the minimum of the detected distance to surrounding buildings.
             # near_building_penalty_coef = 1
             near_building_penalty_coef = 3
+
+            # if cross_err_distance <= drone_obj.protectiveBound:
+            #     near_building_penalty_coef = 3
+            # else:
+            #     near_building_penalty_coef = 0
+
             # near_building_penalty_coef = 0
             # near_building_penalty = near_building_penalty_coef*((1-(1/(1+math.exp(turningPtConst-min_dist))))*
             #

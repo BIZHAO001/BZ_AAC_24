@@ -9,6 +9,7 @@
 import copy
 import jps
 import warnings
+import pickle
 from jps_straight import jps_find_path
 from collections import OrderedDict
 from shapely.ops import nearest_points
@@ -198,7 +199,7 @@ class env_simulator:
                 # top left
                 # plt.plot(centre_coord[0], centre_coord[1], marker='.', color='g', markersize=2)
 
-    def reset_world(self, total_agentNum, full_observable_critic_flag, show):  # set initialize position and observation for all agents
+    def reset_world(self, total_agentNum, full_observable_critic_flag, episode, show):  # set initialize position and observation for all agents
         self.global_time = 0.0
         self.time_step = 0.5
         # reset OU_noise as well
@@ -286,6 +287,12 @@ class env_simulator:
             #     random_end_pos = (600, 360)
             #     pass
 
+            # random_start_pos = one_set_SE_collection[episode-1][agentIdx][0]
+            # random_end_pos = one_set_SE_collection[episode-1][agentIdx][1]
+            # random_start_pos = one_set_SE_collection[agentIdx][0]
+            # random_end_pos = one_set_SE_collection[agentIdx][1]
+
+            random_end_pos_collection.append([random_start_pos, random_end_pos])
             host_current_circle = Point(np.array(random_start_pos)[0], np.array(random_start_pos)[1]).buffer(self.all_agents[agentIdx].protectiveBound)
 
             possiblePoly = self.allbuildingSTR.query(host_current_circle)
@@ -409,7 +416,7 @@ class env_simulator:
         #     if loop_count % 500 == 0:
         #         print("set {} generated".format(loop_count))
         # print("The {}th set starting point generated, one initial collision case happened".format(loop_count))
-
+        # all_eps_OD.append(random_end_pos_collection)
         # overall_state, norm_overall_state = self.cur_state_norm_state_fully_observable(agentRefer_dict)
         # print('time used is {}'.format(time.time() - start_time))
         overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, \
@@ -1404,9 +1411,9 @@ class env_simulator:
                 norm_nearest_neigh_vel = nearest_neigh_pos
             else:
                 nearest_neigh_pos = self.all_agents[nearest_neigh_key].pos
-                norm_nearest_neigh_pos = self.normalizer.scale_pos(nearest_neigh_pos)
+                norm_nearest_neigh_pos = self.normalizer.nmlz_pos(nearest_neigh_pos)
                 delta_nei = nearest_neigh_pos - agent.pos
-                norm_delta_nei = norm_nearest_neigh_pos - self.normalizer.scale_pos([agent.pos[0], agent.pos[1]])
+                norm_delta_nei = norm_nearest_neigh_pos - self.normalizer.nmlz_pos([agent.pos[0], agent.pos[1]])
                 nearest_neigh_vel = self.all_agents[nearest_neigh_key].vel
                 norm_nearest_neigh_vel = self.normalizer.norm_scale(
                     [nearest_neigh_vel[0], nearest_neigh_vel[1]])  # normalization using scale
@@ -1643,6 +1650,9 @@ class env_simulator:
             self_obs = np.array([agent.pos[0], agent.pos[1], agent.vel[0], agent.vel[1],
                                   agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1], agent.heading])
 
+            # self_obs = np.array([agent.pos[0], agent.pos[1], agent.vel[0], agent.vel[1],
+            #                       agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1], agent.heading, delta_nei[0], delta_nei[1]])
+
             # self_obs = np.array([agent.vel[0], agent.vel[1],
             #                       agent.goal[-1][0]-agent.pos[0], agent.goal[-1][1]-agent.pos[1],
             #                       pre_total_possible_conflict, cur_total_possible_conflict])
@@ -1668,6 +1678,7 @@ class env_simulator:
 
             norm_self_obs = np.concatenate([norm_pos, norm_vel, norm_deltaG], axis=0)
             norm_self_obs = np.append(norm_self_obs, agent.heading)  # we have to do this because heading dim=1
+            # norm_self_obs = np.append(norm_self_obs, norm_delta_nei)  # we have to do this because heading dim=1
 
             # norm_self_obs = np.append(norm_self_obs, norm_nearest_neigh)
 
@@ -1681,7 +1692,6 @@ class env_simulator:
             # overall_state_p2.append(agent.observableSpace)
             overall_state_p2_radar.append(agent.observableSpace)
             overall_state_p2.append(all_neigh_agents)
-
 
             # distances_list = [dist_element[0] for dist_element in agent.observableSpace]
             # mini_index = find_index_of_min_first_element(agent.observableSpace)
@@ -3019,6 +3029,16 @@ class env_simulator:
         y_top_bound = LineString([(-9999, self.bound[3]), (9999, self.bound[3])])
         dist_to_goal = 0  # initialize
         for drone_idx, drone_obj in self.all_agents.items():
+            host_current_circle = Point(self.all_agents[drone_idx].pos[0], self.all_agents[drone_idx].pos[1]).buffer(
+                self.all_agents[drone_idx].protectiveBound)
+            tar_circle = Point(self.all_agents[drone_idx].goal[-1]).buffer(1, cap_style='round')
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=RuntimeWarning)
+                goal_cur_intru_intersect = host_current_circle.intersection(tar_circle)
+            if not goal_cur_intru_intersect.is_empty:
+                drone_obj.reach_target = True
+
+        for drone_idx, drone_obj in self.all_agents.items():
             if xy[0] is not None and xy[1] is not None and drone_idx > 0:
                 continue
             if xy[0] is not None and xy[1] is not None:
@@ -3072,6 +3092,8 @@ class env_simulator:
             cur_total_possible_conflict = 0
             pre_total_possible_conflict = 0
             all_neigh_dist = []
+            neigh_relative_bearing = None
+            neigh_collision_bearing = None
             for neigh_keys in self.all_agents[drone_idx].surroundingNeighbor:
                 # calculate current t_cpa/d_cpa
                 tcpa, d_tcpa, cur_total_possible_conflict = compute_t_cpa_d_cpa_potential_col(
@@ -3117,14 +3139,29 @@ class env_simulator:
                 # get distance from host to all the surrounding vehicles
                 diff_dist_vec = drone_obj.pos - self.all_agents[neigh_keys].pos  # host pos vector - intruder pos vector
                 euclidean_dist_diff = np.linalg.norm(diff_dist_vec)
-                all_neigh_dist.append(euclidean_dist_diff)
+
+
+                if self.all_agents[neigh_keys].reach_target == True or drone_obj.reach_target == True:
+                    euclidean_dist_diff = math.inf
+                else:
+                    all_neigh_dist.append(euclidean_dist_diff)
+
                 if euclidean_dist_diff < shortest_neigh_dist:
                     shortest_neigh_dist = euclidean_dist_diff
+                    neigh_relative_bearing = calculate_bearing(drone_obj.pos[0], drone_obj.pos[1],
+                                                               self.all_agents[neigh_keys].pos[0], self.all_agents[neigh_keys].pos[1])
                     nearest_neigh_key = neigh_keys
                 if np.linalg.norm(diff_dist_vec) <= drone_obj.protectiveBound * 2:
                     if args.mode == 'eval' and evaluation_by_episode == False:
+                        neigh_collision_bearing = calculate_bearing(drone_obj.pos[0], drone_obj.pos[1],
+                                                                   self.all_agents[neigh_keys].pos[0],
+                                                                   self.all_agents[neigh_keys].pos[1])
                         if self.all_agents[neigh_keys].drone_collision == True \
                                 or self.all_agents[neigh_keys].building_collision == True \
+                                or self.all_agents[neigh_keys].reach_target == True \
+                                or drone_obj.reach_target == True \
+                                or drone_obj.building_collision == True \
+                                or drone_obj.drone_collision == True \
                                 or self.all_agents[neigh_keys].bound_collision == True:
                             continue  # pass this neigh if this neigh is at its terminal condition
                         else:
@@ -3134,9 +3171,15 @@ class env_simulator:
                             drone_obj.drone_collision = True
                             self.all_agents[neigh_keys].drone_collision = True
                     else:
-                        print("host drone_{} collide with drone_{} at time step {}".format(drone_idx, neigh_keys, current_ts))
-                        collision_drones.append(neigh_keys)
-                        drone_obj.drone_collision = True
+                        if self.all_agents[neigh_keys].reach_target == True or drone_obj.reach_target==True:
+                            pass
+                        else:
+                            print("host drone_{} collide with drone_{} at time step {}".format(drone_idx, neigh_keys, current_ts))
+                            neigh_collision_bearing = calculate_bearing(drone_obj.pos[0], drone_obj.pos[1],
+                                                                       self.all_agents[neigh_keys].pos[0],
+                                                                       self.all_agents[neigh_keys].pos[1])
+                            collision_drones.append(neigh_keys)
+                            drone_obj.drone_collision = True
             # loop over all previous step neighbour, check if the collision at current step, is done by the drones that is previous within the closest two neighbors
             neigh_count = 0
             flag_previous_nearest_two = 0
@@ -3278,8 +3321,8 @@ class env_simulator:
             # dist_to_goal = dist_to_goal_coeff * (1 - (dist_left / drone_obj.ref_line.length))  # v3
             # ---- end of v3 leading to goal reward, based on remained distance to travel only ---
 
-            if dist_to_goal > drone_obj.maxSpeed:
-                print("dist_to_goal reward out of range")
+            # if dist_to_goal > drone_obj.maxSpeed:
+            #     print("dist_to_goal reward out of range")
 
             # ------- small segment reward ------------
             # dist_to_seg_coeff = 10
@@ -3338,17 +3381,27 @@ class env_simulator:
             # near_drone_penalty_coef = 1
             # near_drone_penalty_coef = 3
             # near_drone_penalty_coef = 0
-            dist_to_penalty_upperbound = 6
-            # dist_to_penalty_upperbound = 10
+            near_drone_penalty = 0
+            # dist_to_penalty_upperbound = 6
+            dist_to_penalty_upperbound = 10
             dist_to_penalty_lowerbound = 2.5
             # assume when at lowerbound, y = 1
+            all_neigh_dist.sort()
             c_drone = 1 + (dist_to_penalty_lowerbound / (dist_to_penalty_upperbound - dist_to_penalty_lowerbound))
             m_drone = (0 - 1) / (dist_to_penalty_upperbound - dist_to_penalty_lowerbound)
             if nearest_neigh_key is not None:
-                if shortest_neigh_dist >= dist_to_penalty_lowerbound and shortest_neigh_dist <= dist_to_penalty_upperbound:
-                    near_drone_penalty = near_drone_penalty_coef * (m_drone * shortest_neigh_dist + c_drone)
-                else:
-                    near_drone_penalty = near_drone_penalty_coef * 0
+                for neigh_dist_idx, shortest_neigh_dist in enumerate(all_neigh_dist):
+                    if neigh_dist_idx == 2:
+                    # if neigh_dist_idx == 1:
+                        break
+                    if shortest_neigh_dist >= dist_to_penalty_lowerbound and shortest_neigh_dist <= dist_to_penalty_upperbound:
+                        if neigh_relative_bearing >= 90.0 and neigh_relative_bearing < 270:
+                            near_drone_penalty_coef = near_drone_penalty_coef * 2
+                        else:
+                            pass
+                        near_drone_penalty = near_drone_penalty + near_drone_penalty_coef * (m_drone * shortest_neigh_dist + c_drone)
+                    else:
+                        near_drone_penalty = near_drone_penalty + near_drone_penalty_coef * 0
             else:
                 near_drone_penalty = near_drone_penalty_coef * 0
             # -----end of near drone penalty ----------------
@@ -3554,6 +3607,10 @@ class env_simulator:
                     done.append(True)
                 # done.append(False)
                 bound_building_check[2] = True
+                if neigh_collision_bearing >=90.0 and neigh_collision_bearing <=180:
+                    crash_penalty_wall = crash_penalty_wall * 2
+                else:
+                    pass
                 rew = rew - crash_penalty_wall
                 reward.append(np.array(rew))
                 # check if the collision is due to the nearest drone.
@@ -3730,15 +3787,18 @@ class env_simulator:
             #print("At time step {} the drone_{}'s output speed is {}".format(current_ts, drone_idx, np.linalg.norm(self.all_agents[drone_idx].vel)))
 
             # update the drone's position based on the update velocities
-            delta_x = self.all_agents[drone_idx].vel[0] * self.time_step
-            delta_y = self.all_agents[drone_idx].vel[1] * self.time_step
+            if drone_obj.reach_target == True:
+                delta_x = 0
+                delta_y = 0
+            else:
+                delta_x = self.all_agents[drone_idx].vel[0] * self.time_step
+                delta_y = self.all_agents[drone_idx].vel[1] * self.time_step
 
             # update current acceleration of the agent after an action
             self.all_agents[drone_idx].acc = np.array([ax, ay])
 
             counterCheck_heading = math.atan2(delta_y, delta_x)
-            if abs(next_heading - counterCheck_heading) > 1e-3 :
-                print("debug, heading different")
+
             self.all_agents[drone_idx].heading = counterCheck_heading
             # ------------- end of acceleration in x and acceleration in y state transition control ---------------#
 

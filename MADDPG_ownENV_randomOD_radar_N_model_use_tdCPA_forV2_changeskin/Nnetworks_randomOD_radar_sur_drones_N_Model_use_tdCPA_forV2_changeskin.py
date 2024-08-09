@@ -8,7 +8,7 @@
 """
 import torch as T
 import torch.nn as nn
-from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA import *
+from Utilities_own_randomOD_radar_sur_drones_N_Model_use_tdCPA_forV2_changeskin import *
 import torch.nn.functional as F
 import torch.optim as optim
 import torch
@@ -273,19 +273,29 @@ class ActorNetwork_ATT_wRadar(nn.Module):
 class ActorNetwork_allnei_wRadar(nn.Module):
     def __init__(self, actor_dim, n_actions):
         super(ActorNetwork_allnei_wRadar, self).__init__()
-        self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.ReLU())
-        self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.ReLU())
-        self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 64), nn.ReLU())
-        self.merge_feature = nn.Sequential(nn.Linear(64+64+64, 256), nn.ReLU())
-        self.act_out = nn.Sequential(nn.Linear(256, 256), nn.ReLU(),
-                                     nn.Linear(256, n_actions), nn.Tanh())
+        # self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.ReLU())
+        # self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.ReLU())
+        # self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 64), nn.ReLU())
+        # self.merge_feature = nn.Sequential(nn.Linear(64+64+64, 256), nn.ReLU())
+        # # self.merge_feature = nn.Sequential(nn.Linear(64+64, 256), nn.ReLU())
+        # self.act_out = nn.Sequential(nn.Linear(256, 256), nn.ReLU(),
+        #                              nn.Linear(256, n_actions), nn.Tanh())
+        # use leaky()
         # self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.LeakyReLU(0.01))
         # self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 64), nn.LeakyReLU(0.01))
         # self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 64), nn.LeakyReLU(0.01))
         # self.merge_feature = nn.Sequential(nn.Linear(64+64+64, 256), nn.LeakyReLU(0.01))
+        # # self.merge_feature = nn.Sequential(nn.Linear(64+64, 256), nn.ReLU())
         # self.act_out = nn.Sequential(nn.Linear(256, 256), nn.LeakyReLU(0.01),
         #                              nn.Linear(256, n_actions), nn.Tanh())
-
+        # wider actor NN
+        self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 128), nn.LeakyReLU(0.01))
+        self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 128), nn.LeakyReLU(0.01))
+        self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 128), nn.LeakyReLU(0.01))
+        self.merge_feature = nn.Sequential(nn.Linear(128*3, 512), nn.LeakyReLU(0.01))
+        # self.merge_feature = nn.Sequential(nn.Linear(64+64, 256), nn.ReLU())
+        self.act_out = nn.Sequential(nn.Linear(512, 256), nn.LeakyReLU(0.01),
+                                     nn.Linear(256, n_actions), nn.Tanh())
         # self.own_fc = nn.Sequential(nn.Linear(actor_dim[0], 64), nn.ReLU())
         # self.own_full_nei = nn.Sequential(nn.Linear(actor_dim[1], 256), nn.ReLU())
         # self.own_grid = nn.Sequential(nn.Linear(actor_dim[2], 128), nn.ReLU())
@@ -742,20 +752,30 @@ class critic_single_TwoPortion(nn.Module):
 class critic_single_TwoPortion_wRadar(nn.Module):
     def __init__(self, critic_obs, n_agents, n_actions, single_history, hidden_state_size):
         super(critic_single_TwoPortion_wRadar, self).__init__()
-        self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.ReLU())
-        self.S_all_nei = nn.Sequential(nn.Linear(critic_obs[1], 128), nn.ReLU())
-        self.S_radar = nn.Sequential(nn.Linear(critic_obs[2], 128), nn.ReLU())
-        self.merge_fc_grid = nn.Sequential(nn.Linear(64+128+128, 512), nn.ReLU())
-        # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128, 512), nn.ReLU())
-        self.out_feature_q = nn.Sequential(nn.Linear(512, 256), nn.ReLU(),
-                                           nn.Linear(256, 1))
-        # self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.LeakyReLU(0.01))
-        # self.S_all_nei = nn.Sequential(nn.Linear(critic_obs[1], 128), nn.LeakyReLU(0.01))
-        # self.S_radar = nn.Sequential(nn.Linear(critic_obs[2], 128), nn.LeakyReLU(0.01))
-        # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128+128, 512), nn.LeakyReLU(0.01))
+        # self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.ReLU())
+        # self.S_all_nei = nn.Sequential(nn.Linear(critic_obs[1], 128), nn.ReLU())
+        # self.S_radar = nn.Sequential(nn.Linear(critic_obs[2], 128), nn.ReLU())
+        # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128+128, 512), nn.ReLU())
         # # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128, 512), nn.ReLU())
-        # self.out_feature_q = nn.Sequential(nn.Linear(512, 256), nn.LeakyReLU(0.01),
+        # self.out_feature_q = nn.Sequential(nn.Linear(512, 256), nn.ReLU(),
         #                                    nn.Linear(256, 1))
+
+        # use leaky()
+        self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.LeakyReLU(0.01))
+        self.S_all_nei = nn.Sequential(nn.Linear(critic_obs[1], 128), nn.LeakyReLU(0.01))
+        self.S_radar = nn.Sequential(nn.Linear(critic_obs[2], 128), nn.LeakyReLU(0.01))
+        self.merge_fc_grid = nn.Sequential(nn.Linear(64+128+128, 512), nn.LeakyReLU(0.01))
+        # self.merge_fc_grid = nn.Sequential(nn.Linear(64+128, 512), nn.ReLU())
+        self.out_feature_q = nn.Sequential(nn.Linear(512, 256), nn.LeakyReLU(0.01),
+                                           nn.Linear(256, 1))
+
+        # multi-heading att?
+        # self.own_fc = nn.Sequential(nn.Linear(critic_obs[0], 128), nn.LeakyReLU(0.01))
+        # self.own_grid = nn.Sequential(nn.Linear(critic_obs[1], 128), nn.LeakyReLU(0.01))
+        # self.neigh_fc = nn.Sequential(nn.Linear(critic_obs[2], 128), nn.LeakyReLU(0.01))
+        # self.out_feature_q = nn.Sequential(nn.Linear(128 * 3+2, 1))
+        # self.multihead_attention = nn.MultiheadAttention(embed_dim=128*3+2, num_heads=2, batch_first=True)
+        #
 
         # ----- to compare
         # self.SA_fc = nn.Sequential(nn.Linear(critic_obs[0]+n_actions, 64), nn.ReLU())
@@ -774,6 +794,18 @@ class critic_single_TwoPortion_wRadar(nn.Module):
         # merge_obs_grid = torch.cat((own_obsWaction, own_radar), dim=1)
         merge_feature = self.merge_fc_grid(merge_obs_grid)
         q = self.out_feature_q(merge_feature)
+
+        # multi-head att?
+        # own_obs = self.own_fc(single_state[0])
+        # own_grid = self.own_grid(single_state[1])
+        # neigh_obs = self.neigh_fc(single_state[2])
+        # concatenated_features = torch.cat((own_obs, own_grid, neigh_obs, single_action), dim=1)
+        # concatenated_features = concatenated_features.unsqueeze(1)
+        # attention_output, _ = self.multihead_attention(concatenated_features, concatenated_features,
+        #                                                concatenated_features)
+        # attention_output = attention_output.squeeze(1)  # Remove sequence dimension
+        #
+        # q = self.out_feature_q(attention_output)
 
         # --- to compare
         # obsWaction = torch.cat((single_state[0], single_action), dim=1)

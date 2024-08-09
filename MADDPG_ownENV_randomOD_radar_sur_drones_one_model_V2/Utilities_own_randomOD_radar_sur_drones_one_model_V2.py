@@ -220,6 +220,64 @@ class OrnsteinUhlenbeckProcess:
         return self.state
 
 
+class OUActionNoise:
+    def __init__(self, mu, sigma, theta, dt):
+        self.ou_gen = None
+        self.sigma = sigma
+        self.mu = mu
+        self.theta = theta
+        self.dt = dt
+
+    def reset(self):
+        self.ou_gen = ornstein_uhlenbeck_gen(self.mu, self.sigma, self.theta, self.dt)
+
+    def __call__(self):
+        return next(self.ou_gen)
+
+
+def action_rescaler(low, high):
+    halfspan = (high - low) / 2.0
+    middle = (high + low) / 2.0
+
+    def rescaler(action):
+        return np.clip((action + middle) * halfspan, low, high)
+
+    return rescaler
+
+
+def ornstein_uhlenbeck_gen(
+    mu: np.ndarray = None,
+    sigma: float = 1.0,
+    theta: float = 0.15,
+    dt: float = 1e-2,
+):
+    rescaler = action_rescaler(-1, 1)  # this acts like an noise clipping, align with the paper's description
+    noise_gen = ornstein_uhlenbeck_unscaled(mu=mu, sigma=sigma, theta=theta, dt=dt)
+    for action in noise_gen:
+        yield rescaler(action)
+
+def ornstein_uhlenbeck_unscaled(
+    mu: np.ndarray = None,
+    sigma: float = 1.0,
+    dim: int = None,
+    theta: float = 0.15,
+    dt: float = 1e-2,
+):
+    if mu is None:
+        if not dim:
+            raise ValueError("Either mu or dimensionality parameter dim must be set!")
+        mu = np.zeros(dim)
+    last_noise = np.zeros_like(mu)
+    while True:
+        noise = (
+            last_noise
+            + theta * (mu - last_noise) * dt
+            + sigma * np.sqrt(dt) * np.random.normal(size=mu.shape)
+        )
+        last_noise = noise
+        yield noise
+
+
 class NormalizeData:
     def __init__(self, x_min_max, y_min_max, spd_max, acc_range):
         self.normalize_max = 1

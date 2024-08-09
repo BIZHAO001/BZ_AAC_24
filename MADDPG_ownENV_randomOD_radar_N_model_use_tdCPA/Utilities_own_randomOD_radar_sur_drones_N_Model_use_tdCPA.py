@@ -28,6 +28,20 @@ import math
 # def radar_capture_obsgrid_centre():
 
 
+def calculate_bearing(x_host, y_host, x_intruder, y_intruder):
+    delta_x = x_intruder - x_host
+    delta_y = y_intruder - y_host
+
+    theta_radians = math.atan2(delta_y, delta_x)
+    theta_degrees = math.degrees(theta_radians)
+
+    # Convert to bearing as specified
+    if theta_degrees < 0:
+        bearing = -theta_degrees
+    else:
+        bearing = 360 - theta_degrees
+
+    return bearing
 
 def initialize_excel_file(file_path):
     # Create a new workbook and add three empty sheets
