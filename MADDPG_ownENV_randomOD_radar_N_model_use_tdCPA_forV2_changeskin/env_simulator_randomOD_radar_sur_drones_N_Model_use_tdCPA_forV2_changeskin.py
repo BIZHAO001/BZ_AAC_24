@@ -564,6 +564,42 @@ class env_simulator:
             # 'star3': [(108.497, 8.911), (110, 10)],
             'star4': [(139.538, 9.936), (160.002, 190.064)]
         }
+
+        # --------- bound config ------------------
+        x_left = LineString([(0, 0), (0, 200)])
+        x_right = LineString([(200, 0), (200, 200)])
+        y_top = LineString([(0, 200), (200, 200)])
+        y_bottom = LineString([(0, 0), (200, 0)])
+        bounds = [x_left, x_right, y_top, y_bottom]
+        # -------- end of bound config ---------
+
+        # -------- start of add cloud -----------
+        cloud_0 = [520, 300, 650, 300]
+        cloud_1 = [575, 350, 650, 350]
+        all_clouds = [cloud_0, cloud_1]
+        cloud_config = []
+        no_spawn_zone = []
+        for cloud_idx, cloud_setting in enumerate(all_clouds):
+            cloud_a = cloud_agent(cloud_idx)
+            cloud_a.pos = Point(cloud_setting[0], cloud_setting[1])
+            cloud_a.ini_pos = cloud_a.pos
+            cloud_a.cloud_actual_cur_shape = cloud_a.pos.buffer(cloud_a.radius)
+            cloud_a.goal = Point(cloud_setting[2], cloud_setting[3])
+            cloud_a.trajectory.append(cloud_a.pos)
+            cloud_config.append(cloud_a)
+            no_spawn_zone.append((cloud_setting[0]-25, cloud_setting[0]+25, cloud_setting[1]-25, cloud_setting[1]+25))
+        # -------- end of add cloud -----------
+
+        # --------- potential reference line (only for display not involved in training)---------
+        line_w1 = LineString([(487, 360), (530, 320), (550, 260)])
+        line_w2 = LineString([(525, 380), (540, 320), (550, 260)])
+        line_w3 = LineString([(580, 255), (650, 385)])
+        line_w4 = LineString([(640, 255), (600, 385)])
+        potential_RF = [line_w1, line_w2, line_w3, line_w4]
+        self.potential_ref_line = potential_RF
+        self.cloud_config = cloud_config
+        self.boundaries = bounds
+        # ---------- end of potential reference line ---------
         random_end_pos_collection = []
         for agentIdx in self.all_agents.keys():
 
@@ -583,7 +619,10 @@ class env_simulator:
             random_start_index = random.randint(0, len(self.target_pool) - 1)
             numbers_left = list(range(0, random_start_index)) + list(range(random_start_index + 1, len(self.target_pool)))
             random_target_index = random.choice(numbers_left)
-            random_start_pos = random.choice(self.target_pool[random_start_index])
+
+            # random_start_pos = random.choice(self.target_pool[random_start_index])
+            random_start_pos = generate_random_circle_multiple_exclusions(self.bound, no_spawn_zone)
+
             if len(start_pos_memory) > 0:
                 while len(start_pos_memory) < len(self.all_agents):  # make sure the starting drone generated do not collide with any existing drone
                     # Generate a new point
@@ -591,12 +630,14 @@ class env_simulator:
                     numbers_left = list(range(0, random_start_index)) + list(
                         range(random_start_index + 1, len(self.target_pool)))
                     random_target_index = random.choice(numbers_left)
-                    random_start_pos = random.choice(self.target_pool[random_start_index])
+                    # random_start_pos = random.choice(self.target_pool[random_start_index])
+                    random_start_pos = generate_random_circle_multiple_exclusions(self.bound, no_spawn_zone)
                     # Check that the distance to all existing points is more than 5
                     if all(np.linalg.norm(np.array(random_start_pos)-point) > self.all_agents[agentIdx].protectiveBound*2 for point in start_pos_memory):
                         break
 
-            random_end_pos = random.choice(self.target_pool[random_target_index])
+            # random_end_pos = random.choice(self.target_pool[random_target_index])
+            random_end_pos = generate_random_circle_multiple_exclusions(self.bound, no_spawn_zone)
 
             self.all_agents[agentIdx].pos = np.array(random_start_pos)
             self.all_agents[agentIdx].pre_pos = np.array(random_start_pos)
@@ -656,40 +697,7 @@ class env_simulator:
 
             agentsCoor_list.append(self.all_agents[agentIdx].pos)
 
-        # --------- bound config ------------------
-        x_left = LineString([(0, 0), (0, 200)])
-        x_right = LineString([(200, 0), (200, 200)])
-        y_top = LineString([(0, 200), (200, 200)])
-        y_bottom = LineString([(0, 0), (200, 0)])
-        bounds = [x_left, x_right, y_top, y_bottom]
-        # -------- end of bound config ---------
 
-        # -------- start of add cloud -----------
-        cloud_0 = [520, 300, 650, 300]
-        cloud_1 = [575, 350, 650, 350]
-        all_clouds = [cloud_0, cloud_1]
-        cloud_config = []
-        for cloud_idx, cloud_setting in enumerate(all_clouds):
-            cloud_a = cloud_agent(cloud_idx)
-            cloud_a.pos = Point(cloud_setting[0], cloud_setting[1])
-            cloud_a.ini_pos = cloud_a.pos
-            cloud_a.cloud_actual_cur_shape = cloud_a.pos.buffer(cloud_a.radius)
-            cloud_a.goal = Point(cloud_setting[2], cloud_setting[3])
-            cloud_a.trajectory.append(cloud_a.pos)
-            cloud_config.append(cloud_a)
-            
-        # -------- end of add cloud -----------
-
-        # --------- potential reference line (only for display not involved in training)---------
-        line_w1 = LineString([(487, 360), (530, 320), (550, 260)])
-        line_w2 = LineString([(525, 380), (540, 320), (550, 260)])
-        line_w3 = LineString([(580, 255), (650, 385)])
-        line_w4 = LineString([(640, 255), (600, 385)])
-        potential_RF = [line_w1, line_w2, line_w3, line_w4]
-        self.potential_ref_line = potential_RF
-        self.cloud_config = cloud_config
-        self.boundaries = bounds
-        # ---------- end of potential reference line ---------
 
         overall_state, norm_overall_state, polygons_list, all_agent_st_pos, all_agent_ed_pos, all_agent_intersection_point_list, \
         all_agent_line_collection, all_agent_mini_intersection_list = self.cur_state_norm_state_v3(agentRefer_dict, full_observable_critic_flag)
@@ -4247,11 +4255,14 @@ class env_simulator:
                 # cloud_area_moved = estimated_area_swap_by_arbitary_cloud(clound)  # area swapped by cloud there is error
                 conflicting_cloud = polygons_single_cloud_conflict(host_current_circle, clound.cloud_actual_cur_shape)
                 # conflicting_cloud = polygons_single_cloud_conflict(host_circle, cloud_area_moved)
-                if len(conflicting_cloud) > 0:
-                    collide_cloud = 1
-                    drone_obj.cloud_collision = True
-                    print("{} conflict with cloud".format(drone_obj.agent_name))
-                    break
+                if drone_obj.reach_target == True:  # when current agent has reached the goal, we don't consider any cloud collision
+                    pass
+                else:
+                    if len(conflicting_cloud) > 0:
+                        collide_cloud = 1
+                        drone_obj.cloud_collision = True
+                        print("{} conflict with cloud".format(drone_obj.agent_name))
+                        break
 
 
             # check whether current actions leads to a collision with any buildings in the airspace
@@ -4600,10 +4611,11 @@ class env_simulator:
             #
             #                                                     (1-(min_dist/turningPtConst)**2))  # value from 0 ~ 1.
             # turningPtConst = 12.5
-            turningPtConst = 5
+            # turningPtConst = 5  # for protectiveBound=2.5
+            turningPtConst = 7.5  # for protectiveBound=5
             if turningPtConst == 12.5:
                 c = 1.25
-            elif turningPtConst == 5:
+            elif turningPtConst == 5 or turningPtConst == 7.5:
                 c = 2
             # # linear building penalty
             # makesure only when min_dist is >=0 and <= turningPtConst, then we activate this penalty

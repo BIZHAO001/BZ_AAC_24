@@ -25,8 +25,69 @@ from matplotlib.transforms import Affine2D
 import matplotlib.animation as animation
 from openpyxl import load_workbook
 from openpyxl import Workbook
+import cairosvg
+import io
+from PIL import Image
 from matplotlib.markers import MarkerStyle
 import math
+
+
+def generate_random_circle_multiple_exclusions(bounds, no_fly_zones):
+    xmin, xmax, ymin, ymax = bounds
+
+    # Start with the entire space as possible regions
+    possible_regions = [(xmin, xmax, ymin, ymax)]
+
+    for no_fly_bounds in no_fly_zones:
+        no_fly_xmin, no_fly_xmax, no_fly_ymin, no_fly_ymax = no_fly_bounds
+        new_regions = []
+
+        for region in possible_regions:
+            rxmin, rxmax, rymin, rymax = region
+
+            # Check if the no-fly zone intersects with the current region
+            if rxmin < no_fly_xmax and rxmax > no_fly_xmin and rymin < no_fly_ymax and rymax > no_fly_ymin:
+                # Split the region into parts that are outside the no-fly zone
+                if rxmin < no_fly_xmin:
+                    new_regions.append((rxmin, no_fly_xmin, rymin, rymax))  # Left part
+                if rxmax > no_fly_xmax:
+                    new_regions.append((no_fly_xmax, rxmax, rymin, rymax))  # Right part
+                if rymin < no_fly_ymin:
+                    new_regions.append(
+                        (max(rxmin, no_fly_xmin), min(rxmax, no_fly_xmax), rymin, no_fly_ymin))  # Bottom part
+                if rymax > no_fly_ymax:
+                    new_regions.append(
+                        (max(rxmin, no_fly_xmin), min(rxmax, no_fly_xmax), no_fly_ymax, rymax))  # Top part
+            else:
+                # If no intersection, keep the entire region
+                new_regions.append(region)
+
+        possible_regions = new_regions
+
+    # Randomly select one of the remaining regions
+    if not possible_regions:
+        raise ValueError("No valid regions available outside the no-fly zones.")
+
+    selected_region = possible_regions[np.random.randint(0, len(possible_regions))]
+
+    # Generate a random center within the selected region
+    center_x = np.random.uniform(selected_region[0], selected_region[1])
+    center_y = np.random.uniform(selected_region[2], selected_region[3])
+
+    # # Randomly select a radius that fits within the selected region
+    # max_possible_radius_x = min(center_x - selected_region[0], selected_region[1] - center_x)
+    # max_possible_radius_y = min(center_y - selected_region[2], selected_region[3] - center_y)
+    # max_possible_radius = min(max_possible_radius_x, max_possible_radius_y, max_radius)
+    #
+    # radius = np.random.uniform(0, max_possible_radius)
+
+    return center_x, center_y
+
+def load_svg_image(svg_path):
+    png_image_data = cairosvg.svg2png(url=svg_path)
+    image = Image.open(io.BytesIO(png_image_data))
+    return image
+
 
 def polygons_single_cloud_conflict(circle, cloud_polygon):
     conflicts = []
@@ -149,37 +210,31 @@ def animate(frame_num, ax, env, trajectory_eachPlay):
     plt.axhline(y=env.bound[3], c="green")
     plt.xlabel("X axis")
     plt.ylabel("Y axis")
-
-    # draw occupied_poly
-    for one_poly in env.world_map_2D_polyList[0][0]:
-        one_poly_mat = shapelypoly_to_matpoly(one_poly, True, 'y', 'b')
-        # ax.add_patch(one_poly_mat)
-    # draw non-occupied_poly
-    for zero_poly in env.world_map_2D_polyList[0][1]:
-        zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
-        # ax.add_patch(zero_poly_mat)
-
-    # show building obstacles
-    for poly in env.buildingPolygons:
-        matp_poly = shapelypoly_to_matpoly(poly, False, 'red')  # the 3rd parameter is the edge color
-        # ax.add_patch(matp_poly)
-
+    aircraft_svg_path = r'F:\githubClone\HotspotResolver_24\pictures\Aircraft.svg'  # Replace with your SVG path
+    plane_img = load_svg_image(aircraft_svg_path)
+    # Define colors with transparency (alpha)
+    colors = [
+        (0.5, 0, 0.5),  # Purple
+        (0.2, 0.8, 0.2),  # Lime
+        (1, 0, 0),  # Red
+        (0, 1, 0),  # Green
+        (0, 0, 1),  # Blue
+        (0, 1, 1),  # Cyan
+        (1, 0, 1),  # Magenta
+        (1, 1, 0),  # Yellow
+        (1, 0.65, 0),  # Orange
+    ]
     for agentIdx, agent in env.all_agents.items():
         plt.plot(agent.ini_pos[0], agent.ini_pos[1],
-                 marker=MarkerStyle(">",
-                                    fillstyle="right",
-                                    transform=Affine2D().rotate_deg(math.degrees(agent.heading))),
-                 color='y')
+                 marker=MarkerStyle("^"), color=colors[agentIdx])
         plt.text(agent.ini_pos[0], agent.ini_pos[1], agent.agent_name)
-        plt.plot(agent.goal[-1][0], agent.goal[-1][1], marker='*', color='y', markersize=10)
+        plt.plot(agent.goal[-1][0], agent.goal[-1][1], marker='*', color=colors[agentIdx], markersize=10)
         plt.text(agent.goal[-1][0], agent.goal[-1][1], agent.agent_name)
 
         # link individual drone's starting position with its goal
         ini = agent.ini_pos
-        # for wp in agent.goal:
         for wp in agent.ref_line.coords:
-            # plt.plot(wp[0], wp[1], marker='*', color='y', markersize=10)
-            plt.plot([wp[0], ini[0]], [wp[1], ini[1]], '--', color='c')
+            plt.plot([wp[0], ini[0]], [wp[1], ini[1]], linestyle='solid', linewidth=10, color=colors[agentIdx], alpha=0.2)
             ini = wp
 
     # display cloud
@@ -263,13 +318,26 @@ def animate(frame_num, ax, env, trajectory_eachPlay):
 
     for a_idx, agent in enumerate(trajectory_eachPlay[frame_num]):
         x, y = agent[0], agent[1]
-        plt.plot(x, y, 'o', color='r')
+        # plt.plot(x, y, 'o', color='r')
 
         # plt.text(x-1, y-1, 'agent_'+str(a_idx)+'_'+str(round(float(frame_num), 2)))
-        plt.text(x-1, y-1, 'agent_'+str(a_idx)+'_'+str(agent[2]))
-
+        if np.issubdtype(agent[2].dtype, np.integer):
+            plt.text(x - 1, y - 1, 'a_' + str(a_idx) + '_' + str(agent[2]))
+        else:
+            plt.text(x - 1, y - 1, 'a_' + str(a_idx) + '_' + str(np.round((agent[2]), 4)))
+        heading = agent[3] * 180 / np.pi  # in degree
+        img_extent = [
+            x - env.all_agents[0].protectiveBound,
+            x + env.all_agents[0].protectiveBound,
+            y - env.all_agents[0].protectiveBound,
+            y + env.all_agents[0].protectiveBound
+        ]
+        transform = Affine2D().rotate_deg_around(x, y, heading - 90) + ax.transData
+        ax.imshow(plane_img, extent=img_extent, zorder=10, transform=transform)
         self_circle = Point(x, y).buffer(env.all_agents[0].protectiveBound, cap_style='round')
-        grid_mat_Scir = shapelypoly_to_matpoly(self_circle, False, 'k')
+        grid_mat_Scir = shapelypoly_to_matpoly(self_circle, inFill=True, Edgecolor=None, FcColor='lightblue')  # None meaning no edge
+        grid_mat_Scir.set_zorder(2)
+        grid_mat_Scir.set_alpha(0.9)  # Set transparency to 0.5
         ax.add_patch(grid_mat_Scir)
 
     return ax.patches + [ax.texts]
@@ -582,7 +650,7 @@ def sort_polygons(polygons):  # this sorting is left to right, but bottom to top
 
 
 # this is to remove the need for the package descrete
-def shapelypoly_to_matpoly(ShapelyPolgon, inFill=False, Edgecolor='black', FcColor='blue'):
+def shapelypoly_to_matpoly(ShapelyPolgon, inFill=False, Edgecolor=None, FcColor='blue'):
     xcoo, ycoo = ShapelyPolgon.exterior.coords.xy
     matPolyConverted = matPolygon(xy=list(zip(xcoo, ycoo)), fill=inFill, edgecolor=Edgecolor, facecolor=FcColor)
     return matPolyConverted

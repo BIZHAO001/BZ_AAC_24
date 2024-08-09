@@ -44,8 +44,10 @@ def initialize_parameters():
     # set boundary
     xlow = 455
     xhigh = 680
-    ylow = 255
-    yhigh = 385
+    # ylow = 255
+    ylow = 220
+    # yhigh = 385
+    yhigh = 420
     bound = [xlow, xhigh, ylow, yhigh]
     # agent config address
     # read the Excel file into a pandas dataframe

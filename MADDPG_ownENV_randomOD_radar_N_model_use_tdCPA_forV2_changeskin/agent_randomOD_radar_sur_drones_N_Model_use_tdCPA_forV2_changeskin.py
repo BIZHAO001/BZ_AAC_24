@@ -40,7 +40,8 @@ class Agent:
         # self.detectionRange = 40  # in meters, this is the in diameter
         self.detectionRange = 30  # in meters, this is the in diameter
         # self.detectionRange = 100  # in meters, this is the in diameter, 100m, no convergence
-        self.protectiveBound = 2.5  # diameter is 2.5*2, this is radius
+        # self.protectiveBound = 2.5  # diameter is 2.5*2, this is radius
+        self.protectiveBound = 5  # diameter is 2.5*2, this is radius
         # self.protectiveBound = 1.5  # diameter is 2.5*2, this is radius
         # a dictionary, key is the agent idx, value is the array of 1x6,
         # which correspond to the observation vector of that neighbor

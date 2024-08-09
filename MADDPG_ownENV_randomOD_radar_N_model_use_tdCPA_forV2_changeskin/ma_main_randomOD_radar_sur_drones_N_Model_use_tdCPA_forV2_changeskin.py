@@ -65,8 +65,8 @@ def main(args):
         # initialize_excel_file(excel_file_path_time)
         # ------------ end of this portion is to save using excel instead of pickle -----------
 
-    # use_wanDB = False
-    use_wanDB = True
+    use_wanDB = False
+    # use_wanDB = True
 
     evaluation_by_episode = True
     # evaluation_by_episode = False
@@ -471,7 +471,7 @@ def main(args):
                 traj_step_list = []
                 for each_agent_idx, each_agent in env.all_agents.items():
                     # traj_step_list.append([each_agent.pos[0], each_agent.pos[1], reward_aft_action[each_agent_idx]])
-                    traj_step_list.append([each_agent.pos[0], each_agent.pos[1], np.array(step_reward_record[each_agent_idx][1])])
+                    traj_step_list.append([each_agent.pos[0], each_agent.pos[1], np.array(step_reward_record[each_agent_idx][1]), each_agent.heading])
                 trajectory_eachPlay.append(traj_step_list)
                 if len(gru_history) >= gru_history_length:
                     obs = []
@@ -742,7 +742,7 @@ def main(args):
                             all_drone_reach = all_drone_reach + 1
                             # print("There are no True values in the list.")
 
-                    if episode % 100 == 0:  # every 100 episode we record the training performance (without evaluation)
+                    if episode % 1000 == 0:  # every 100 episode we record the training performance (without evaluation)
                         # if episode == 10:
                         # After the loop, save the file once
                         # writer.save()
@@ -1123,7 +1123,7 @@ if __name__ == '__main__':
     parser.add_argument('--algo', default="maddpg", type=str, help="commnet/bicnet/maddpg")
     parser.add_argument('--mode', default="train", type=str, help="train/eval")
     # parser.add_argument('--episode_length', default=150, type=int)  # maximum play per episode
-    parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
+    parser.add_argument('--episode_length', default=120, type=int)  # maximum play per episode
     # parser.add_argument('--episode_length', default=100, type=int)  # maximum play per episode
     parser.add_argument('--memory_length', default=int(1e5), type=int)
     # parser.add_argument('--memory_length', default=int(1e4), type=int)
