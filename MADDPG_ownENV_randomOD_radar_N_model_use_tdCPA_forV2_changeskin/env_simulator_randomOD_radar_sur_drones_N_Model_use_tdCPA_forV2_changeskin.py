@@ -566,11 +566,11 @@ class env_simulator:
         }
 
         # --------- bound config ------------------
-        x_left = LineString([(0, 0), (0, 200)])
-        x_right = LineString([(200, 0), (200, 200)])
-        y_top = LineString([(0, 200), (200, 200)])
-        y_bottom = LineString([(0, 0), (200, 0)])
-        bounds = [x_left, x_right, y_top, y_bottom]
+        x_left = LineString([(self.bound[0], self.bound[2]), (self.bound[0], self.bound[3])])
+        x_right = LineString([(self.bound[1], self.bound[2]), (self.bound[1], self.bound[3])])
+        y_top = LineString([(self.bound[0], self.bound[3]), (self.bound[1], self.bound[3])])
+        y_bottom = LineString([(self.bound[0], self.bound[2]), (self.bound[1], self.bound[2])])
+        bounds = [x_left, x_right, y_top, y_bottom]  # not used
         # -------- end of bound config ---------
 
         # -------- start of add cloud -----------
@@ -587,7 +587,15 @@ class env_simulator:
             cloud_a.goal = Point(cloud_setting[2], cloud_setting[3])
             cloud_a.trajectory.append(cloud_a.pos)
             cloud_config.append(cloud_a)
-            no_spawn_zone.append((cloud_setting[0]-25, cloud_setting[0]+25, cloud_setting[1]-25, cloud_setting[1]+25))
+            no_spawn_zone.append((cloud_setting[0]-20, cloud_setting[0]+20, cloud_setting[1]-20, cloud_setting[1]+20))
+
+        # additional no spawn zone to account for aircraft don't spawn near the map boundaries
+        no_spawn_zone.append((self.bound[0], self.bound[1], self.bound[2], self.bound[2]+10))  # x-axis, lower bound
+        no_spawn_zone.append((self.bound[0], self.bound[1], self.bound[3]-10, self.bound[3]))  # x-axis, upper bound
+        no_spawn_zone.append((self.bound[0], self.bound[0]+10, self.bound[2], self.bound[3]))  # y-axis, left bound
+        no_spawn_zone.append((self.bound[1]-10, self.bound[1], self.bound[2], self.bound[3]))  # y-axis, right bound
+        # end of additional no spawn zone to account for aircraft don't spawn near the map boundaries
+
         # -------- end of add cloud -----------
 
         # --------- potential reference line (only for display not involved in training)---------
@@ -705,16 +713,45 @@ class env_simulator:
         if show:
             os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
             matplotlib.use('TkAgg')
+            aircraft_svg_path = r'F:\githubClone\HotspotResolver_24\pictures\Aircraft.svg'  # Replace with your SVG path
+            plane_img = load_svg_image(aircraft_svg_path)
             fig, ax = plt.subplots(1, 1)
+            plot_linestring(ax, x_left, zorder=5)
+            plot_linestring(ax, x_right, zorder=5)
+            plot_linestring(ax, y_top, zorder=5)
+            plot_linestring(ax, y_bottom, zorder=5)
+            # Define colors
+            colors = [
+                (0.5, 0, 0.5),  # Purple
+                (0.2, 0.8, 0.2),  # Lime
+                (1, 0, 0),  # Red
+                (0, 1, 0),  # Green
+                (0, 0, 1),  # Blue
+                (0, 1, 1),  # Cyan
+                (1, 0, 1),  # Magenta
+                (1, 1, 0),  # Yellow
+                (1, 0.65, 0),  # Orange
+            ]
             for agentIdx, agent in self.all_agents.items():
-                plt.plot(agent.pos[0], agent.pos[1], marker=MarkerStyle(">", fillstyle="right",
-                                                                        transform=Affine2D().rotate_deg(
-                                                                            math.degrees(agent.heading))), color='y')
-                plt.text(agent.pos[0], agent.pos[1], agent.agent_name)
+                x, y = agent.pos[0], agent.pos[1]
+                # plt.plot(agent.pos[0], agent.pos[1], marker=MarkerStyle("^"), color=colors[agentIdx])
+                # plt.text(agent.pos[0], agent.pos[1], agent.agent_name)
+                img_extent = [
+                    x - agent.protectiveBound,
+                    x + agent.protectiveBound,
+                    y - agent.protectiveBound,
+                    y + agent.protectiveBound
+                ]
+                heading = agent.heading * 180 / np.pi  # in degree
+                transform = Affine2D().rotate_deg_around(x, y, heading - 90) + ax.transData
+                ax.imshow(plane_img, extent=img_extent, zorder=10, transform=transform)
                 # plot self_circle of the drone
-                self_circle = Point(agent.pos[0], agent.pos[1]).buffer(agent.protectiveBound, cap_style='round')
-                grid_mat_Scir = shapelypoly_to_matpoly(self_circle, False, 'k')
-                # ax.add_patch(grid_mat_Scir)
+                self_circle = Point(x, y).buffer(agent.protectiveBound, cap_style='round')
+                grid_mat_Scir = shapelypoly_to_matpoly(self_circle, inFill=True, Edgecolor=None,
+                                                       FcColor='lightblue')  # None meaning no edge
+                grid_mat_Scir.set_zorder(2)
+                grid_mat_Scir.set_alpha(0.9)  # Set transparency to 0.5
+                ax.add_patch(grid_mat_Scir)
 
                 # plot drone's detection range
                 detec_circle = Point(agent.pos[0], agent.pos[1]).buffer(agent.detectionRange / 2, cap_style='round')
@@ -737,12 +774,16 @@ class env_simulator:
             # draw non-occupied_poly
             for zero_poly in self.world_map_2D_polyList[0][1]:
                 zero_poly_mat = shapelypoly_to_matpoly(zero_poly, False, 'y')
-                ax.add_patch(zero_poly_mat)
+                # ax.add_patch(zero_poly_mat)
 
             # show building obstacles
             for poly in self.buildingPolygons:
                 matp_poly = shapelypoly_to_matpoly(poly, False, 'red')  # the 3rd parameter is the edge color
                 # ax.add_patch(matp_poly)
+
+            # shown bounding boxes
+            for bbox in no_spawn_zone:
+                plot_bounding_box(ax, bbox)
 
             # show the nearest building obstacles
             # nearest_buildingPoly_mat = shapelypoly_to_matpoly(nearest_buildingPoly, True, 'g', 'k')

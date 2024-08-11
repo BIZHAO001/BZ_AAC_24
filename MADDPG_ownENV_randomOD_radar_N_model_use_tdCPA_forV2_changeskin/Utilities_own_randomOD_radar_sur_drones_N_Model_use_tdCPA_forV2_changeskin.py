@@ -26,10 +26,38 @@ import matplotlib.animation as animation
 from openpyxl import load_workbook
 from openpyxl import Workbook
 import cairosvg
+import matplotlib.patches as patches
 import io
 from PIL import Image
 from matplotlib.markers import MarkerStyle
 import math
+
+
+def plot_linestring(ax, linestring, color='black', zorder=0):
+    x, y = linestring.xy
+    ax.plot(x, y, color=color, linewidth=2)
+
+
+def plot_bounding_box(ax, bbox, edgecolor='r', facecolor='none'):
+# def plot_bounding_box(ax, bbox, facecolor='none'):
+    """
+    Plots a bounding box on the given axis.
+
+    Parameters:
+    - ax: The matplotlib axis to plot on.
+    - bbox: A tuple or list in the form (x_min, x_max, y_min, y_max).
+    - edgecolor: The color of the bounding box edge.
+    - facecolor: The fill color of the bounding box (default is transparent).
+    """
+    x_min, x_max, y_min, y_max = bbox
+    width = x_max - x_min
+    height = y_max - y_min
+
+    # Create a rectangle patch
+    rect = patches.Rectangle((x_min, y_min), width, height, linewidth=1, edgecolor=edgecolor, facecolor=facecolor)
+
+    # Add the rectangle to the plot
+    ax.add_patch(rect)
 
 
 def generate_random_circle_multiple_exclusions(bounds, no_fly_zones):
