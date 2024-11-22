@@ -574,9 +574,53 @@ class env_simulator:
         # -------- end of bound config ---------
 
         # -------- start of add cloud -----------
+# <<<<<<< Updated upstream
         cloud_0 = [520, 300, 650, 300]
         cloud_1 = [575, 350, 650, 350]
         all_clouds = [cloud_0, cloud_1]
+# =======
+        # ---------- start of sg_route_clouds with fixed cloud OD for 5.3 --------------- #
+        # cloud_0 = [50, 180, 80, 30]
+        # cloud_1 = [100, 140, 140, 40]
+        # all_clouds = [cloud_0, cloud_1]
+        # ---------- end of sg_route_clouds with fixed cloud OD for 5.3 --------------- #
+
+        # #AR1_clouds
+        # cloud_0 = [175, 130, 20, 50]
+        # # cloud_1 = [190, 100, 100, 50]
+
+        # #AR2_clouds
+        # cloud_0 = [135, 190, 80, 25]
+        # # cloud_1 = [190, 100, 100, 50]
+
+        # --------- start of manually assigned a fixed cloud OD config for 5.5 4 graph-------------- #
+        cloud_0 = [40, 13, 175, 60]
+        cloud_1 = [40, 180, 125, 88]
+        cloud_2 = [50, 198, 165, 150]
+        all_clouds = [cloud_0, cloud_1, cloud_2]
+        # --------- end of manually assigned a fixed cloud OD config 4 graph-------------- #
+
+        # ------- start of generate random cloud number -------------- #
+        # all_clouds = []
+        # cloud_num = 3
+        # for _ in range(cloud_num):
+        #     cloud_ori_no_spawn_zone = []  # there is a maximum of 3 set of origin or destination, so at most list length equals to 3.
+        #     cloud_dest_no_spawn_zone = []
+        #     # set threshold
+        #     thresh = 20+5  # my final goal or starting point is not a point, but a circle
+        #     # min_distance_between_cloud_OD = 40
+        #     for OD_pt in AR_routes.values():
+        #         ori_pt_x, ori_pt_y = OD_pt[0][0], OD_pt[0][1]
+        #         dest_pt_x, dest_pt_y = OD_pt[1][0], OD_pt[1][1]
+        #         cloud_ori_no_spawn_zone.append((ori_pt_x-thresh, ori_pt_x+thresh, ori_pt_y-thresh, ori_pt_y+thresh))
+        #         cloud_dest_no_spawn_zone.append((dest_pt_x-thresh, dest_pt_x+thresh, dest_pt_y-thresh, dest_pt_y+thresh))
+        #     cloud_coord_origin = generate_random_circle_multiple_exclusions(self.bound, cloud_ori_no_spawn_zone)
+        #     # generate_random_circle_multiple_exclusions_with_refPt(self.bound)
+        #     cloud_coord_destination = generate_random_circle_multiple_exclusions_with_refPt(self.bound, cloud_dest_no_spawn_zone, cloud_coord_origin)
+        #     all_clouds.append(cloud_coord_origin + cloud_coord_destination)
+        # ------- end of generate random cloud number -------------- #
+
+# >>>>>>> Stashed changes
         cloud_config = []
         no_spawn_zone = []
         for cloud_idx, cloud_setting in enumerate(all_clouds):

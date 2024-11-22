@@ -4,10 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 from scipy.spatial import distance
+from matplotlib.path import Path
+from matplotlib.patches import PathPatch
+from matplotlib.colors import LinearSegmentedColormap
 import time
 import matplotlib
 import pickle
 import os
+from scipy.ndimage import gaussian_filter
 
 # Function to check if a point is inside an obstacle
 def is_in_obstacle(point, obstacle_pos, size):
@@ -15,7 +19,7 @@ def is_in_obstacle(point, obstacle_pos, size):
     return (point[0] - ox) ** 2 + (point[1] - oy) ** 2 <= size ** 2
 
 # Function to check if a point is inside a nearby aircraft (treated as a dynamic obstacle)
-def is_nearby_aircraft(point, aircraft_pos, avoidance_radius=20):
+def is_nearby_aircraft(point, aircraft_pos, avoidance_radius=30):
     return np.linalg.norm(np.array(point) - np.array(aircraft_pos)) < avoidance_radius
 
 # Function to find the nearest neighbor nodes to a node
@@ -137,33 +141,121 @@ def dynamic_flight_path_multiple(aircraft_dict_initial, aircraft_dict_late1, air
 
 # Visualization of the dynamic trajectories for multiple aircraft
 def plot_dynamic_trajectories(aircraft_trajectories, obstacle_trajectory, obstacle_size, x_lim, y_lim):
-    plt.figure(figsize=(8, 8))  # Set the figure size to be square
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    matplotlib.use('TkAgg')
+    fig, ax = plt.subplots(figsize=(8, 8))  # Set the figure size to be square
+    alpha_values = np.linspace(0.1, 1.0, len(obstacle_trajectory))
     for name, trajectory in aircraft_trajectories.items():
         trajectory = np.array(trajectory)
         plt.plot(trajectory[:, 0], trajectory[:, 1], linestyle=':', label=f'{name} trajectory')
         plt.scatter(trajectory[0, 0], trajectory[0, 1], marker='^', color='green', s=50)  # Start marker
         plt.scatter(trajectory[-1, 0], trajectory[-1, 1], marker='*', color='red', s=50)  # Goal marker
-    plt.text(20, 180, 'AR1', fontsize=10, ha='right')
-    plt.text(20, 102, 'AR2', fontsize=10, ha='right')
-    plt.text(20, 30, 'AR3', fontsize=10, ha='right')
+
+    plt.text(20, 180, 'AR1', fontsize=12, ha='right')
+    plt.text(20, 102, 'AR2', fontsize=12, ha='right')
+    plt.text(20, 30, 'AR3', fontsize=12, ha='right')
+
     plt.plot([20, 170], [180, 20], linestyle='-', color='purple', linewidth=10, alpha=0.1)  # AR1
     plt.plot([20, 185], [102, 102], linestyle='-', color='green', linewidth=10, alpha=0.1)  # AR2
     plt.plot([20, 170], [30, 180], linestyle='-', color='red', linewidth=10, alpha=0.1)  # AR3
+
     obstacle_trajectory = np.array(obstacle_trajectory)
-    plt.plot(obstacle_trajectory[:, 0], obstacle_trajectory[:, 1], 'r--')
+    # plt.plot(obstacle_trajectory[:, 0], obstacle_trajectory[:, 1], 'r--')
     for i, obs in enumerate(obstacle_trajectory):
-        if i % 10 == 0:  # plot circle every 10 timesteps
-            circle = plt.Circle(obs, obstacle_size, color='red', fill=True, alpha=0.3)
-            plt.gca().add_patch(circle)
+        if i % 5 == 0:  # plot circle every 10 timesteps
+            # circle = plt.Circle(obs, obstacle_size, color='red', fill=True, alpha=0.3)
+            # plt.gca().add_patch(circle)
+
+            center_x, center_y = obs[0], obs[1]
+
+            # Generate multiple clusters of random points within the specified range
+            num_points_per_cluster = 5000
+            num_clusters = 15
+            contour_range = 20  # 10, 20, 30
+
+            x_range = (-contour_range/1.5 + 2, contour_range/1.5 + 2)
+            y_range = (-contour_range/1.5 + 2, contour_range/1.5 + 2)
+
+            cluster_centers_x = np.random.uniform(center_x + x_range[0], center_x + x_range[1], num_clusters)
+            cluster_centers_y = np.random.uniform(center_y + y_range[0], center_y + y_range[1], num_clusters)
+            cluster_centers = np.column_stack((cluster_centers_x, cluster_centers_y))
+
+            # Generate points for each cluster with controlled density
+            x, y = [], []
+            for cx, cy in cluster_centers:
+                angles = np.random.uniform(0, 2 * np.pi, num_points_per_cluster)
+                radii = np.random.normal(0, 0.1, num_points_per_cluster)  # Decrease spread for higher density
+                x.extend(cx + radii * np.cos(angles))
+                y.extend(cy + radii * np.sin(angles))
+            x = np.array(x)
+            y = np.array(y)
+            # Create a 2D histogram to serve as the contour data
+            margin = 25
+            contour_min_x = center_x + x_range[0] - margin
+            contour_max_x = center_x + x_range[1] + margin
+            contour_min_y = center_y + y_range[0] - margin
+            contour_max_y = center_y + y_range[1] + margin
+            hist, xedges, yedges = np.histogram2d(x, y, bins=(100, 100),
+                                                  range=[[contour_min_x, contour_max_x],
+                                                         [contour_min_y, contour_max_y]])
+            # Smooth the histogram to create a more organic shape
+            hist = gaussian_filter(hist, sigma=5)  # Adjust sigma for better control
+
+            # Create the custom colormap from green to yellow to red
+            cmap = LinearSegmentedColormap.from_list('green_yellow_red', ['green', 'yellow', 'red'])
+            X, Y = np.meshgrid(xedges[:-1] + 0.5 * (xedges[1] - xedges[0]), yedges[:-1] + 0.5 * (yedges[1] - yedges[0]))
+            contour_levels = np.linspace(hist.min(), hist.max(), 10)
+
+            # if i == len(trajectory_eachPlay):
+            #     contour = ax.contourf(X, Y, hist, levels=contour_levels, cmap=cmap, alpha=alpha_values[trajectory_idx])
+            # else:
+            #     # in this loop we only required to draw once.
+            #     if contour_drawn[cloud_idx] == False:
+            #         contour = ax.contourf(X, Y, hist, levels=contour_levels, cmap=cmap)
+            #         contour_drawn[cloud_idx] = True
+            contour = ax.contourf(X, Y, hist, levels=contour_levels, cmap=cmap, alpha=alpha_values[i])
+            level_color = cmap(
+                (contour_levels[1] - contour_levels.min()) / (contour_levels.max() - contour_levels.min()))
+            # Extract the outermost contour path and overlay it with a black line
+
+            # if max_time_step == len(trajectory_eachPlay):
+            #     outermost_contour = ax.contour(X, Y, hist, levels=[contour_levels[1]], colors=[level_color],
+            #                                    linewidths=1, alpha=alpha_values[
+            #             trajectory_idx])  # this line must be present to show the boundary fading
+            # else:
+            #     # in this loop we only required to draw once.
+            #     if outline_drawn[cloud_idx] == False:
+            #         outermost_contour = ax.contour(X, Y, hist, levels=[contour_levels[1]], colors=[level_color],
+            #                                        linewidths=1)
+            #         outline_drawn[cloud_idx] = True
+            outermost_contour = ax.contour(X, Y, hist, levels=[contour_levels[1]], colors=[level_color],
+                                           linewidths=1, alpha=alpha_values[i])
+            # Extract the vertices of the outermost contour path
+            outermost_path = outermost_contour.collections[0].get_paths()[0]
+            vertices = outermost_path.vertices
+            x_clip, y_clip = vertices[:, 0], vertices[:, 1]
+            # ax.plot(x_clip, y_clip, color="crimson")
+            coordinates = np.column_stack((x_clip, y_clip))
+            clippath = Path(coordinates)
+            patch = PathPatch(clippath, facecolor='none', alpha=alpha_values[i])
+            ax.add_patch(patch)
+            for c in contour.collections:
+                c.set_clip_path(patch)
     plt.xlim(x_lim)
     plt.ylim(y_lim)
     plt.gca().set_aspect('equal', adjustable='box')  # Ensure the plot has equal aspect ratio for x and y axes
-    plt.xlabel('Length (nm)')
-    plt.ylabel('Width (nm)')
+    plt.xlabel('Length (NM)', fontsize=12)
+    plt.ylabel('Width (NM)', fontsize=12)
+    # Set tick font sizes
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
 
 def save_figure_with_new_folder(simulation_number, folder_path):
-    figure_path = os.path.join(folder_path, f"simu{simulation_number}.png")
-    plt.savefig(figure_path)
+    # Define the path for saving the figure in SVG format
+    figure_path = os.path.join(folder_path, f"simu{simulation_number}.svg")  # Save as SVG
+    # Save the figure
+    plt.savefig(figure_path, format='svg')  # Save as SVG format
+
 
 def create_simulation_folder():
     base_directory = r'D:/FMT_vs_IDDPG/figure'
@@ -291,7 +383,7 @@ if __name__ == "__main__":
     obstacle_size = 25
 
     run_multiple_simulations(
-        n=10,
+        n=3,
         num_nodes=num_nodes,
         radius=radius,
         x_lim=x_lim,
